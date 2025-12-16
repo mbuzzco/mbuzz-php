@@ -145,7 +145,8 @@ final class Api
         $response = curl_exec($ch);
         $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $error = curl_error($ch);
-        curl_close($ch);
+        // Note: curl_close() removed - it has no effect since PHP 8.0
+        // and is deprecated since PHP 8.5
 
         if ($response === false) {
             throw new \RuntimeException("cURL error: {$error}");
