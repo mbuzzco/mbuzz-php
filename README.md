@@ -118,6 +118,25 @@ protected $middleware = [
 ];
 ```
 
+### Symfony
+
+```php
+<?php
+// config/services.yaml
+services:
+    Mbuzz\Adapter\SymfonySubscriber:
+        tags: ['kernel.event_subscriber']
+
+// src/Kernel.php or config/packages/mbuzz.php
+use Mbuzz\Mbuzz;
+
+Mbuzz::init([
+    'api_key' => $_ENV['MBUZZ_API_KEY'],
+]);
+```
+
+The `SymfonySubscriber` automatically initializes tracking on each request by listening to the `kernel.request` event with high priority.
+
 ### Slim / PSR-15 Frameworks
 
 ```php
