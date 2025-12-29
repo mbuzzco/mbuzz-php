@@ -46,11 +46,12 @@ final class Context
         }
 
         // Get or create visitor ID
-        $this->visitorId = $cookies->getVisitorId() ?? IdGenerator::generate();
+        $existingVisitorId = $cookies->getVisitorId();
+        $this->visitorId = $existingVisitorId ?? IdGenerator::generate();
         $isNewVisitor = $cookies->isNewVisitor();
 
-        // Get or create session ID
-        $this->sessionId = $cookies->getSessionId() ?? IdGenerator::generate();
+        // Get or create session ID (deterministic for race condition prevention)
+        $this->sessionId = $cookies->getSessionId() ?? $this->generateSessionId($existingVisitorId);
         $this->isNewSession = $cookies->isNewSession();
 
         // Extract request info
@@ -162,5 +163,34 @@ final class Context
             ($_SERVER['SERVER_PORT'] ?? 0) == 443 ||
             ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https'
         );
+    }
+
+    /**
+     * Generate deterministic session ID to prevent race condition duplicates
+     */
+    private function generateSessionId(?string $existingVisitorId): string
+    {
+        if ($existingVisitorId !== null) {
+            return SessionIdGenerator::generateDeterministic($existingVisitorId);
+        }
+
+        return SessionIdGenerator::generateFromFingerprint(
+            $this->getClientIp(),
+            $this->getUserAgent()
+        );
+    }
+
+    private function getClientIp(): string
+    {
+        $forwarded = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? null;
+        if ($forwarded !== null) {
+            return trim(explode(',', $forwarded)[0]);
+        }
+        return $_SERVER['HTTP_X_REAL_IP'] ?? $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+    }
+
+    private function getUserAgent(): string
+    {
+        return $_SERVER['HTTP_USER_AGENT'] ?? 'unknown';
     }
 }
