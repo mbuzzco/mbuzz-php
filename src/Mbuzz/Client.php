@@ -80,6 +80,8 @@ final class Client
             sessionId: $this->context->getSessionId(),
             userId: $this->context->getUserId(),
             properties: $this->context->enrichProperties($properties),
+            ip: $this->context->getClientIp(),
+            userAgent: $this->context->getUserAgent(),
         );
 
         return $request->send($this->api);

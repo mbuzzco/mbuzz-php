@@ -15,6 +15,8 @@ final class TrackRequest
         private ?string $userId = null,
         /** @var array<string, mixed> */
         private array $properties = [],
+        private ?string $ip = null,
+        private ?string $userAgent = null,
     ) {
     }
 
@@ -31,16 +33,24 @@ final class TrackRequest
             return false;
         }
 
-        $payload = [
-            'events' => [[
-                'event_type' => $this->eventType,
-                'visitor_id' => $this->visitorId,
-                'session_id' => $this->sessionId,
-                'user_id' => $this->userId,
-                'properties' => $this->properties,
-                'timestamp' => $this->isoNow(),
-            ]],
+        $event = [
+            'event_type' => $this->eventType,
+            'visitor_id' => $this->visitorId,
+            'session_id' => $this->sessionId,
+            'user_id' => $this->userId,
+            'properties' => $this->properties,
+            'timestamp' => $this->isoNow(),
         ];
+
+        // Add ip and user_agent only if provided (for server-side session resolution)
+        if ($this->ip !== null) {
+            $event['ip'] = $this->ip;
+        }
+        if ($this->userAgent !== null) {
+            $event['user_agent'] = $this->userAgent;
+        }
+
+        $payload = ['events' => [$event]];
 
         $response = $api->postWithResponse('/events', $payload);
 

@@ -165,4 +165,96 @@ class TrackRequestTest extends TestCase
         $this->assertIsArray($result);
         $this->assertTrue($result['success']);
     }
+
+    // Server-side session resolution tests (v0.2.0+)
+
+    public function testSendIncludesIpInPayload(): void
+    {
+        $request = new TrackRequest(
+            eventType: 'page_view',
+            visitorId: str_repeat('a', 64),
+            ip: '192.168.1.100',
+        );
+
+        $api = $this->createMockApi();
+
+        $capturedPayload = null;
+        $api->setTransport(function($method, $url, $payload) use (&$capturedPayload) {
+            $capturedPayload = json_decode($payload, true);
+            return ['status' => 202, 'body' => ['events' => [['id' => 'evt_123']]]];
+        });
+
+        $request->send($api);
+
+        $event = $capturedPayload['events'][0];
+        $this->assertEquals('192.168.1.100', $event['ip']);
+    }
+
+    public function testSendIncludesUserAgentInPayload(): void
+    {
+        $request = new TrackRequest(
+            eventType: 'page_view',
+            visitorId: str_repeat('a', 64),
+            userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
+        );
+
+        $api = $this->createMockApi();
+
+        $capturedPayload = null;
+        $api->setTransport(function($method, $url, $payload) use (&$capturedPayload) {
+            $capturedPayload = json_decode($payload, true);
+            return ['status' => 202, 'body' => ['events' => [['id' => 'evt_123']]]];
+        });
+
+        $request->send($api);
+
+        $event = $capturedPayload['events'][0];
+        $this->assertEquals('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', $event['user_agent']);
+    }
+
+    public function testSendIncludesBothIpAndUserAgent(): void
+    {
+        $request = new TrackRequest(
+            eventType: 'page_view',
+            visitorId: str_repeat('a', 64),
+            ip: '10.0.0.1',
+            userAgent: 'Chrome/120',
+        );
+
+        $api = $this->createMockApi();
+
+        $capturedPayload = null;
+        $api->setTransport(function($method, $url, $payload) use (&$capturedPayload) {
+            $capturedPayload = json_decode($payload, true);
+            return ['status' => 202, 'body' => ['events' => [['id' => 'evt_123']]]];
+        });
+
+        $request->send($api);
+
+        $event = $capturedPayload['events'][0];
+        $this->assertEquals('10.0.0.1', $event['ip']);
+        $this->assertEquals('Chrome/120', $event['user_agent']);
+    }
+
+    public function testSendOmitsIpAndUserAgentWhenNotProvided(): void
+    {
+        $request = new TrackRequest(
+            eventType: 'page_view',
+            visitorId: str_repeat('a', 64),
+        );
+
+        $api = $this->createMockApi();
+
+        $capturedPayload = null;
+        $api->setTransport(function($method, $url, $payload) use (&$capturedPayload) {
+            $capturedPayload = json_decode($payload, true);
+            return ['status' => 202, 'body' => ['events' => [['id' => 'evt_123']]]];
+        });
+
+        $request->send($api);
+
+        $event = $capturedPayload['events'][0];
+        $this->assertArrayNotHasKey('ip', $event);
+        $this->assertArrayNotHasKey('user_agent', $event);
+    }
 }

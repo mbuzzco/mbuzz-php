@@ -175,22 +175,29 @@ final class Context
         }
 
         return SessionIdGenerator::generateFromFingerprint(
-            $this->getClientIp(),
-            $this->getUserAgent()
+            $this->getClientIp() ?? 'unknown',
+            $this->getUserAgent() ?? 'unknown'
         );
     }
 
-    private function getClientIp(): string
+    /**
+     * Get client IP address (for server-side session resolution)
+     * Checks X-Forwarded-For, X-Real-IP, then REMOTE_ADDR
+     */
+    public function getClientIp(): ?string
     {
         $forwarded = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? null;
         if ($forwarded !== null) {
             return trim(explode(',', $forwarded)[0]);
         }
-        return $_SERVER['HTTP_X_REAL_IP'] ?? $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+        return $_SERVER['HTTP_X_REAL_IP'] ?? $_SERVER['REMOTE_ADDR'] ?? null;
     }
 
-    private function getUserAgent(): string
+    /**
+     * Get client user agent (for server-side session resolution)
+     */
+    public function getUserAgent(): ?string
     {
-        return $_SERVER['HTTP_USER_AGENT'] ?? 'unknown';
+        return $_SERVER['HTTP_USER_AGENT'] ?? null;
     }
 }
