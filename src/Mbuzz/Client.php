@@ -1,4 +1,5 @@
 <?php
+// NOTE: Session handling removed in 0.7.0 - server handles session resolution
 
 declare(strict_types=1);
 
@@ -7,7 +8,6 @@ namespace Mbuzz;
 use Mbuzz\Request\TrackRequest;
 use Mbuzz\Request\IdentifyRequest;
 use Mbuzz\Request\ConversionRequest;
-use Mbuzz\Request\SessionRequest;
 
 final class Client
 {
@@ -33,7 +33,7 @@ final class Client
     }
 
     /**
-     * Initialize context from request (cookies, session creation)
+     * Initialize context from request (cookies)
      */
     public function initFromRequest(): void
     {
@@ -50,18 +50,13 @@ final class Client
 
         // Initialize context from cookies
         $this->context->initialize($this->cookies);
-
-        // Create session if new
-        if ($this->context->isNewSession()) {
-            $this->createSessionAsync();
-        }
     }
 
     /**
      * Track an event
      *
      * @param array<string, mixed> $properties
-     * @return array{success: bool, event_id: ?string, event_type: string, visitor_id: ?string, session_id: ?string}|false
+     * @return array{success: bool, event_id: ?string, event_type: string, visitor_id: ?string}|false
      */
     public function track(string $eventType, array $properties = []): array|false
     {
@@ -77,7 +72,6 @@ final class Client
         $request = new TrackRequest(
             eventType: $eventType,
             visitorId: $this->context->getVisitorId(),
-            sessionId: $this->context->getSessionId(),
             userId: $this->context->getUserId(),
             properties: $this->context->enrichProperties($properties),
             ip: $this->context->getClientIp(),
@@ -98,7 +92,10 @@ final class Client
      *   currency?: string,
      *   is_acquisition?: bool,
      *   inherit_acquisition?: bool,
-     *   properties?: array<string, mixed>
+     *   properties?: array<string, mixed>,
+     *   ip?: string,
+     *   user_agent?: string,
+     *   identifier?: array<string, string>
      * } $options
      * @return array{success: bool, conversion_id: ?string, attribution: mixed}|false
      */
@@ -123,6 +120,9 @@ final class Client
             isAcquisition: $options['is_acquisition'] ?? false,
             inheritAcquisition: $options['inherit_acquisition'] ?? false,
             properties: $options['properties'] ?? [],
+            ip: $options['ip'] ?? $this->context->getClientIp(),
+            userAgent: $options['user_agent'] ?? $this->context->getUserAgent(),
+            identifier: $options['identifier'] ?? null,
         );
 
         return $request->send($this->api);
@@ -154,21 +154,5 @@ final class Client
         );
 
         return $request->send($this->api);
-    }
-
-    /**
-     * Create session asynchronously (fire and forget)
-     */
-    private function createSessionAsync(): void
-    {
-        $request = new SessionRequest(
-            visitorId: $this->context->getVisitorId() ?? '',
-            sessionId: $this->context->getSessionId() ?? '',
-            url: $this->context->getUrl(),
-            referrer: $this->context->getReferrer(),
-        );
-
-        // Fire and forget - don't block the request
-        $request->send($this->api);
     }
 }

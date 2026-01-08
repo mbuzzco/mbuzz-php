@@ -1,4 +1,5 @@
 <?php
+// NOTE: Session handling removed in 0.7.0 - server handles session resolution
 
 declare(strict_types=1);
 
@@ -38,7 +39,7 @@ final class Mbuzz
 
     /**
      * Initialize context from request (call early in request lifecycle)
-     * This handles cookie reading/writing and session creation.
+     * This handles cookie reading/writing.
      */
     public static function initFromRequest(): void
     {
@@ -51,7 +52,7 @@ final class Mbuzz
      *
      * @param string $eventType Event name (e.g., 'page_view', 'add_to_cart')
      * @param array<string, mixed> $properties Custom event properties
-     * @return array{success: bool, event_id: ?string, event_type: string, visitor_id: ?string, session_id: ?string}|false
+     * @return array{success: bool, event_id: ?string, event_type: string, visitor_id: ?string}|false
      */
     public static function event(string $eventType, array $properties = []): array|false
     {
@@ -71,7 +72,10 @@ final class Mbuzz
      *   currency?: string,
      *   is_acquisition?: bool,
      *   inherit_acquisition?: bool,
-     *   properties?: array<string, mixed>
+     *   properties?: array<string, mixed>,
+     *   ip?: string,
+     *   user_agent?: string,
+     *   identifier?: array<string, string>
      * } $options Conversion options
      * @return array{success: bool, conversion_id: ?string, attribution: mixed}|false
      */
@@ -100,15 +104,6 @@ final class Mbuzz
     {
         $context = Context::getInstance();
         return $context->isInitialized() ? $context->getVisitorId() : null;
-    }
-
-    /**
-     * Get current session ID
-     */
-    public static function sessionId(): ?string
-    {
-        $context = Context::getInstance();
-        return $context->isInitialized() ? $context->getSessionId() : null;
     }
 
     /**

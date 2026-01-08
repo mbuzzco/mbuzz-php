@@ -1,4 +1,5 @@
 <?php
+// NOTE: Session cookie removed in 0.7.0 - server handles session resolution
 
 declare(strict_types=1);
 
@@ -7,10 +8,7 @@ namespace Mbuzz;
 final class CookieManager
 {
     public const VISITOR_COOKIE = '_mbuzz_vid';
-    public const SESSION_COOKIE = '_mbuzz_sid';
-
     public const VISITOR_MAX_AGE = 63072000; // 2 years in seconds
-    public const SESSION_MAX_AGE = 1800;     // 30 minutes in seconds
 
     /** @var array<string, string> */
     private array $cookies;
@@ -102,14 +100,6 @@ final class CookieManager
     }
 
     /**
-     * Get session ID cookie, or null if not set
-     */
-    public function getSessionId(): ?string
-    {
-        return $this->get(self::SESSION_COOKIE);
-    }
-
-    /**
      * Set visitor ID cookie
      */
     public function setVisitorId(string $visitorId): bool
@@ -118,27 +108,11 @@ final class CookieManager
     }
 
     /**
-     * Set session ID cookie
-     */
-    public function setSessionId(string $sessionId): bool
-    {
-        return $this->set(self::SESSION_COOKIE, $sessionId, self::SESSION_MAX_AGE);
-    }
-
-    /**
      * Check if visitor is new (no visitor cookie)
      */
     public function isNewVisitor(): bool
     {
         return $this->getVisitorId() === null;
-    }
-
-    /**
-     * Check if session is new (no session cookie)
-     */
-    public function isNewSession(): bool
-    {
-        return $this->getSessionId() === null;
     }
 
     private function isSecureRequest(): bool

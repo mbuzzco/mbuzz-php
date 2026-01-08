@@ -53,9 +53,8 @@ class SymfonySubscriberTest extends TestCase
 
         $subscriber->onKernelRequest($event);
 
-        // Context should be initialized
+        // Context should be initialized (visitor only - server handles sessions)
         $this->assertNotNull(Mbuzz::visitorId());
-        $this->assertNotNull(Mbuzz::sessionId());
     }
 
     public function testOnKernelRequestIgnoresSubRequests(): void
@@ -107,11 +106,9 @@ class SymfonySubscriberTest extends TestCase
     public function testOnKernelRequestReadsVisitorCookie(): void
     {
         $existingVisitorId = str_repeat('a', 64);
-        $existingSessionId = str_repeat('b', 64);
 
         // Must set $_COOKIE BEFORE Mbuzz::init() since CookieManager reads at construction
         $_COOKIE['_mbuzz_vid'] = $existingVisitorId;
-        $_COOKIE['_mbuzz_sid'] = $existingSessionId;
 
         // Re-initialize Mbuzz so it picks up the cookies
         Mbuzz::reset();
@@ -130,7 +127,6 @@ class SymfonySubscriberTest extends TestCase
         $subscriber->onKernelRequest($event);
 
         $this->assertEquals($existingVisitorId, Mbuzz::visitorId());
-        $this->assertEquals($existingSessionId, Mbuzz::sessionId());
     }
 
     public function testSubscriberCanBeDisabled(): void

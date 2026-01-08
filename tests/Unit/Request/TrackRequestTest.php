@@ -53,12 +53,10 @@ class TrackRequestTest extends TestCase
     public function testSendBuildsCorrectPayload(): void
     {
         $visitorId = str_repeat('a', 64);
-        $sessionId = str_repeat('b', 64);
 
         $request = new TrackRequest(
             eventType: 'add_to_cart',
             visitorId: $visitorId,
-            sessionId: $sessionId,
             userId: 'user_123',
             properties: ['product_id' => 'SKU-123', 'price' => 49.99],
         );
@@ -79,7 +77,6 @@ class TrackRequestTest extends TestCase
         $event = $capturedPayload['events'][0];
         $this->assertEquals('add_to_cart', $event['event_type']);
         $this->assertEquals($visitorId, $event['visitor_id']);
-        $this->assertEquals($sessionId, $event['session_id']);
         $this->assertEquals('user_123', $event['user_id']);
         $this->assertEquals('SKU-123', $event['properties']['product_id']);
         $this->assertEquals(49.99, $event['properties']['price']);
@@ -91,7 +88,6 @@ class TrackRequestTest extends TestCase
         $request = new TrackRequest(
             eventType: 'page_view',
             visitorId: str_repeat('a', 64),
-            sessionId: str_repeat('b', 64),
         );
 
         $api = $this->createMockApi();

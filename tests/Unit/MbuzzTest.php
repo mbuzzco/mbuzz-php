@@ -73,13 +73,6 @@ class MbuzzTest extends TestCase
         $this->assertNull(Mbuzz::visitorId());
     }
 
-    public function testSessionIdReturnsNullBeforeInitFromRequest(): void
-    {
-        Mbuzz::init(['api_key' => 'sk_test_abc123']);
-
-        $this->assertNull(Mbuzz::sessionId());
-    }
-
     public function testUserIdReturnsNullBeforeIdentify(): void
     {
         Mbuzz::init(['api_key' => 'sk_test_abc123']);

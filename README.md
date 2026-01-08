@@ -27,7 +27,7 @@ Mbuzz::init([
     'debug' => true, // optional, logs API requests
 ]);
 
-// Initialize from request (reads cookies, creates session)
+// Initialize from request (reads cookies, captures context)
 // Call this early in your request lifecycle, before output
 Mbuzz::initFromRequest();
 
@@ -63,7 +63,6 @@ Mbuzz::identify($user->id, [
 
 // Access current IDs
 $visitorId = Mbuzz::visitorId();
-$sessionId = Mbuzz::sessionId();
 $userId = Mbuzz::userId();
 ```
 
@@ -162,7 +161,7 @@ Initialize the SDK. Must be called before any tracking methods.
 
 ### `Mbuzz::initFromRequest()`
 
-Initialize context from the current HTTP request. Reads cookies, creates visitor/session IDs if needed, and creates a session in Mbuzz.
+Initialize context from the current HTTP request. Reads visitor cookie, captures IP and user agent for server-side session resolution.
 
 ### `Mbuzz::event(string $eventType, array $properties = [])`
 
@@ -183,7 +182,7 @@ Returns result array with `conversion_id` on success, `false` on failure.
 
 Link the current visitor to a known user. Returns `true` on success.
 
-### `Mbuzz::visitorId()`, `Mbuzz::sessionId()`, `Mbuzz::userId()`
+### `Mbuzz::visitorId()`, `Mbuzz::userId()`
 
 Get current tracking IDs.
 
@@ -193,14 +192,15 @@ Reset SDK state. Useful for testing or long-running processes.
 
 ## Cookie Behavior
 
-The SDK sets two cookies:
+The SDK sets one cookie:
 - `_mbuzz_vid`: Visitor ID (2-year expiry)
-- `_mbuzz_sid`: Session ID (30-minute sliding expiry)
 
-Both cookies are:
+The cookie is:
 - HttpOnly (not accessible via JavaScript)
 - SameSite=Lax
 - Secure (on HTTPS connections)
+
+Session resolution is handled server-side using IP and user agent for device fingerprinting.
 
 ## Development
 

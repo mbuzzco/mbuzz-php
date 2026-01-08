@@ -69,7 +69,7 @@ class ContextTest extends TestCase
         $this->assertEquals($existingVisitorId, $context->getVisitorId());
     }
 
-    public function testInitializeCreatesSessionIdForNewSession(): void
+    public function testOnlySetsVisitorCookie(): void
     {
         $setCookies = [];
         $cookies = new CookieManager([], function($name, $value, $options) use (&$setCookies) {
@@ -80,46 +80,33 @@ class ContextTest extends TestCase
         $context = Context::getInstance();
         $context->initialize($cookies);
 
-        $this->assertNotNull($context->getSessionId());
-        $this->assertEquals(64, strlen($context->getSessionId()));
-        $this->assertArrayHasKey(CookieManager::SESSION_COOKIE, $setCookies);
+        // Should only set visitor cookie (no session cookie in 0.7.0+)
+        $this->assertArrayHasKey(CookieManager::VISITOR_COOKIE, $setCookies);
+        $this->assertCount(1, $setCookies);
     }
 
-    public function testInitializeUsesExistingSessionId(): void
+    public function testCapturesClientIp(): void
     {
-        $existingSessionId = str_repeat('b', 64);
-        $cookies = new CookieManager([
-            CookieManager::VISITOR_COOKIE => str_repeat('a', 64),
-            CookieManager::SESSION_COOKIE => $existingSessionId,
-        ]);
-
-        $context = Context::getInstance();
-        $context->initialize($cookies);
-
-        $this->assertEquals($existingSessionId, $context->getSessionId());
-    }
-
-    public function testIsNewSessionReturnsTrueForNewSession(): void
-    {
+        $_SERVER['HTTP_X_FORWARDED_FOR'] = '203.0.113.50, 198.51.100.1';
         $cookies = new CookieManager([], function() { return true; });
 
         $context = Context::getInstance();
         $context->initialize($cookies);
 
-        $this->assertTrue($context->isNewSession());
+        $this->assertEquals('203.0.113.50', $context->getClientIp());
+        unset($_SERVER['HTTP_X_FORWARDED_FOR']);
     }
 
-    public function testIsNewSessionReturnsFalseForExistingSession(): void
+    public function testCapturesUserAgent(): void
     {
-        $cookies = new CookieManager([
-            CookieManager::VISITOR_COOKIE => str_repeat('a', 64),
-            CookieManager::SESSION_COOKIE => str_repeat('b', 64),
-        ]);
+        $_SERVER['HTTP_USER_AGENT'] = 'Mozilla/5.0 Test';
+        $cookies = new CookieManager([], function() { return true; });
 
         $context = Context::getInstance();
         $context->initialize($cookies);
 
-        $this->assertFalse($context->isNewSession());
+        $this->assertEquals('Mozilla/5.0 Test', $context->getUserAgent());
+        unset($_SERVER['HTTP_USER_AGENT']);
     }
 
     public function testUserIdIsNullByDefault(): void
@@ -212,7 +199,7 @@ class ContextTest extends TestCase
         $context->initialize($cookies);
 
         $this->assertEquals($firstVisitorId, $context->getVisitorId());
-        // Should have only set cookies twice (visitor + session) on first init
-        $this->assertEquals(2, $callCount);
+        // Should have only set visitor cookie once on first init
+        $this->assertEquals(1, $callCount);
     }
 }

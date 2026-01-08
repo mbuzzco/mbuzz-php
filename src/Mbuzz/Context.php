@@ -1,4 +1,5 @@
 <?php
+// NOTE: Session ID removed in 0.7.0 - server handles session resolution
 
 declare(strict_types=1);
 
@@ -9,11 +10,11 @@ final class Context
     private static ?self $instance = null;
 
     private ?string $visitorId = null;
-    private ?string $sessionId = null;
     private ?string $userId = null;
     private ?string $url = null;
     private ?string $referrer = null;
-    private bool $isNewSession = false;
+    private ?string $ip = null;
+    private ?string $userAgent = null;
     private bool $initialized = false;
 
     private function __construct()
@@ -46,23 +47,19 @@ final class Context
         }
 
         // Get or create visitor ID
-        $existingVisitorId = $cookies->getVisitorId();
-        $this->visitorId = $existingVisitorId ?? IdGenerator::generate();
+        $this->visitorId = $cookies->getVisitorId() ?? IdGenerator::generate();
         $isNewVisitor = $cookies->isNewVisitor();
-
-        // Get or create session ID (deterministic for race condition prevention)
-        $this->sessionId = $cookies->getSessionId() ?? $this->generateSessionId($existingVisitorId);
-        $this->isNewSession = $cookies->isNewSession();
 
         // Extract request info
         $this->url = $this->extractUrl();
         $this->referrer = $_SERVER['HTTP_REFERER'] ?? null;
+        $this->ip = $this->extractClientIp();
+        $this->userAgent = $_SERVER['HTTP_USER_AGENT'] ?? null;
 
-        // Set cookies
+        // Set visitor cookie if new
         if ($isNewVisitor) {
             $cookies->setVisitorId($this->visitorId);
         }
-        $cookies->setSessionId($this->sessionId); // Always refresh session cookie
 
         $this->initialized = true;
     }
@@ -80,11 +77,6 @@ final class Context
     public function setVisitorId(string $visitorId): void
     {
         $this->visitorId = $visitorId;
-    }
-
-    public function getSessionId(): ?string
-    {
-        return $this->sessionId;
     }
 
     public function getUserId(): ?string
@@ -117,9 +109,20 @@ final class Context
         $this->referrer = $referrer;
     }
 
-    public function isNewSession(): bool
+    /**
+     * Get client IP address (for server-side session resolution)
+     */
+    public function getClientIp(): ?string
     {
-        return $this->isNewSession;
+        return $this->ip;
+    }
+
+    /**
+     * Get client user agent (for server-side session resolution)
+     */
+    public function getUserAgent(): ?string
+    {
+        return $this->userAgent;
     }
 
     /**
@@ -166,38 +169,15 @@ final class Context
     }
 
     /**
-     * Generate deterministic session ID to prevent race condition duplicates
-     */
-    private function generateSessionId(?string $existingVisitorId): string
-    {
-        if ($existingVisitorId !== null) {
-            return SessionIdGenerator::generateDeterministic($existingVisitorId);
-        }
-
-        return SessionIdGenerator::generateFromFingerprint(
-            $this->getClientIp() ?? 'unknown',
-            $this->getUserAgent() ?? 'unknown'
-        );
-    }
-
-    /**
-     * Get client IP address (for server-side session resolution)
+     * Extract client IP from request headers
      * Checks X-Forwarded-For, X-Real-IP, then REMOTE_ADDR
      */
-    public function getClientIp(): ?string
+    private function extractClientIp(): ?string
     {
         $forwarded = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? null;
         if ($forwarded !== null) {
             return trim(explode(',', $forwarded)[0]);
         }
         return $_SERVER['HTTP_X_REAL_IP'] ?? $_SERVER['REMOTE_ADDR'] ?? null;
-    }
-
-    /**
-     * Get client user agent (for server-side session resolution)
-     */
-    public function getUserAgent(): ?string
-    {
-        return $_SERVER['HTTP_USER_AGENT'] ?? null;
     }
 }
