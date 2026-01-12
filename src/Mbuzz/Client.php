@@ -56,9 +56,10 @@ final class Client
      * Track an event
      *
      * @param array<string, mixed> $properties
+     * @param string|null $visitorId Explicit visitor ID (required for background jobs)
      * @return array{success: bool, event_id: ?string, event_type: string, visitor_id: ?string}|false
      */
-    public function track(string $eventType, array $properties = []): array|false
+    public function track(string $eventType, array $properties = [], ?string $visitorId = null): array|false
     {
         if (!$this->config->isEnabled()) {
             return false;
@@ -69,10 +70,19 @@ final class Client
             $this->context->initialize($this->cookies);
         }
 
+        // Resolve visitor_id: explicit param takes precedence over context
+        $resolvedVisitorId = $visitorId ?? $this->context->getVisitorId();
+        $resolvedUserId = $this->context->getUserId();
+
+        // Must have at least one identifier
+        if ($resolvedVisitorId === null && $resolvedUserId === null) {
+            return false;
+        }
+
         $request = new TrackRequest(
             eventType: $eventType,
-            visitorId: $this->context->getVisitorId(),
-            userId: $this->context->getUserId(),
+            visitorId: $resolvedVisitorId,
+            userId: $resolvedUserId,
             properties: $this->context->enrichProperties($properties),
             ip: $this->context->getClientIp(),
             userAgent: $this->context->getUserAgent(),
@@ -110,10 +120,19 @@ final class Client
             $this->context->initialize($this->cookies);
         }
 
+        // Resolve identifiers: explicit params take precedence over context
+        $resolvedVisitorId = $options['visitor_id'] ?? $this->context->getVisitorId();
+        $resolvedUserId = $options['user_id'] ?? $this->context->getUserId();
+
+        // Must have at least one identifier (visitor_id or user_id)
+        if ($resolvedVisitorId === null && $resolvedUserId === null) {
+            return false;
+        }
+
         $request = new ConversionRequest(
             conversionType: $conversionType,
-            visitorId: $options['visitor_id'] ?? $this->context->getVisitorId(),
-            userId: $options['user_id'] ?? $this->context->getUserId(),
+            visitorId: $resolvedVisitorId,
+            userId: $resolvedUserId,
             eventId: $options['event_id'] ?? null,
             revenue: $options['revenue'] ?? null,
             currency: $options['currency'] ?? 'USD',

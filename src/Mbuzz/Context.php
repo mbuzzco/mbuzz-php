@@ -46,8 +46,8 @@ final class Context
             return;
         }
 
-        // Get or create visitor ID
-        $this->visitorId = $cookies->getVisitorId() ?? IdGenerator::generate();
+        // Get visitor ID from cookie (no fallback - prevents orphan visitors)
+        $this->visitorId = $cookies->getVisitorId();
         $isNewVisitor = $cookies->isNewVisitor();
 
         // Extract request info
@@ -56,8 +56,8 @@ final class Context
         $this->ip = $this->extractClientIp();
         $this->userAgent = $_SERVER['HTTP_USER_AGENT'] ?? null;
 
-        // Set visitor cookie if new
-        if ($isNewVisitor) {
+        // Set visitor cookie if new and visitor_id exists
+        if ($isNewVisitor && $this->visitorId !== null) {
             $cookies->setVisitorId($this->visitorId);
         }
 

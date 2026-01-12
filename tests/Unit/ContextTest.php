@@ -39,8 +39,10 @@ class ContextTest extends TestCase
         $this->assertFalse($context->isInitialized());
     }
 
-    public function testInitializeCreatesVisitorIdForNewVisitor(): void
+    public function testInitializeReturnsNullVisitorIdForNewVisitor(): void
     {
+        // v0.8.0+: Context no longer generates visitor IDs
+        // Prevents orphan visitors from background jobs
         $setCookies = [];
         $cookies = new CookieManager([], function($name, $value, $options) use (&$setCookies) {
             $setCookies[$name] = $value;
@@ -51,9 +53,10 @@ class ContextTest extends TestCase
         $context->initialize($cookies);
 
         $this->assertTrue($context->isInitialized());
-        $this->assertNotNull($context->getVisitorId());
-        $this->assertEquals(64, strlen($context->getVisitorId()));
-        $this->assertArrayHasKey(CookieManager::VISITOR_COOKIE, $setCookies);
+        // visitor_id should be null when no cookie exists
+        $this->assertNull($context->getVisitorId());
+        // No cookie should be set since there's no visitor_id to set
+        $this->assertArrayNotHasKey(CookieManager::VISITOR_COOKIE, $setCookies);
     }
 
     public function testInitializeUsesExistingVisitorId(): void
@@ -69,8 +72,9 @@ class ContextTest extends TestCase
         $this->assertEquals($existingVisitorId, $context->getVisitorId());
     }
 
-    public function testOnlySetsVisitorCookie(): void
+    public function testDoesNotSetCookiesWithoutExistingVisitor(): void
     {
+        // v0.8.0+: No cookies set when visitor_id is null
         $setCookies = [];
         $cookies = new CookieManager([], function($name, $value, $options) use (&$setCookies) {
             $setCookies[$name] = $value;
@@ -80,9 +84,8 @@ class ContextTest extends TestCase
         $context = Context::getInstance();
         $context->initialize($cookies);
 
-        // Should only set visitor cookie (no session cookie in 0.7.0+)
-        $this->assertArrayHasKey(CookieManager::VISITOR_COOKIE, $setCookies);
-        $this->assertCount(1, $setCookies);
+        // Should not set any cookies (no visitor_id to set)
+        $this->assertCount(0, $setCookies);
     }
 
     public function testCapturesClientIp(): void
@@ -185,9 +188,14 @@ class ContextTest extends TestCase
 
     public function testInitializeOnlyRunsOnce(): void
     {
-        $callCount = 0;
-        $cookies = new CookieManager([], function() use (&$callCount) {
-            $callCount++;
+        $initCount = 0;
+
+        // Use existing visitor cookie so we can verify initialize runs once
+        $existingVisitorId = str_repeat('b', 64);
+        $cookies = new CookieManager([
+            CookieManager::VISITOR_COOKIE => $existingVisitorId,
+        ], function() use (&$initCount) {
+            $initCount++;
             return true;
         });
 
@@ -199,7 +207,8 @@ class ContextTest extends TestCase
         $context->initialize($cookies);
 
         $this->assertEquals($firstVisitorId, $context->getVisitorId());
-        // Should have only set visitor cookie once on first init
-        $this->assertEquals(1, $callCount);
+        $this->assertEquals($existingVisitorId, $context->getVisitorId());
+        // Cookie setter should not be called since visitor already exists
+        $this->assertEquals(0, $initCount);
     }
 }

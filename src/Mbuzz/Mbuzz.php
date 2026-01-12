@@ -52,12 +52,19 @@ final class Mbuzz
      *
      * @param string $eventType Event name (e.g., 'page_view', 'add_to_cart')
      * @param array<string, mixed> $properties Custom event properties
+     * @param string|null $visitorId Explicit visitor ID (required for background jobs)
      * @return array{success: bool, event_id: ?string, event_type: string, visitor_id: ?string}|false
+     *
+     * @example Normal usage (within request context):
+     *   Mbuzz::event('add_to_cart', ['product_id' => 'SKU-123']);
+     *
+     * @example Background job (must pass explicit visitor_id):
+     *   Mbuzz::event('order_processed', ['order_id' => $order->id], $order->mbuzz_visitor_id);
      */
-    public static function event(string $eventType, array $properties = []): array|false
+    public static function event(string $eventType, array $properties = [], ?string $visitorId = null): array|false
     {
         self::ensureInitialized();
-        return self::$client->track($eventType, $properties);
+        return self::$client->track($eventType, $properties, $visitorId);
     }
 
     /**
