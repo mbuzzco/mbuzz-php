@@ -156,6 +156,31 @@ class ClientIntegrationTest extends TestCase
         $this->assertEquals('explicit_ua', $conversion['user_agent']);
     }
 
+    // Identify → Convert flow (Phase 3D reference verification)
+
+    public function testConversionPicksUpUserIdAfterIdentify(): void
+    {
+        $client = $this->createClient();
+
+        $capturedPayloads = [];
+        $client->setTransport(function($method, $url, $payload) use (&$capturedPayloads) {
+            $decoded = json_decode($payload, true);
+            $capturedPayloads[] = $decoded;
+
+            if (str_contains($url, '/identify')) {
+                return ['status' => 200, 'body' => true];
+            }
+            return ['status' => 201, 'body' => ['conversion' => ['id' => 'conv_123']]];
+        });
+
+        $client->identify('user_123', ['email' => 'jane@example.com']);
+        $client->conversion('purchase', ['revenue' => 99.99]);
+
+        $this->assertCount(2, $capturedPayloads);
+        $conversionPayload = $capturedPayloads[1]['conversion'];
+        $this->assertEquals('user_123', $conversionPayload['user_id']);
+    }
+
     public function testConversionPassesAllContextFields(): void
     {
         $client = $this->createClient();
