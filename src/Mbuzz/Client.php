@@ -73,6 +73,7 @@ final class Client
                 'url' => $this->context->getUrl(),
                 'referrer' => $this->context->getReferrer(),
                 'device_fingerprint' => Fingerprint::compute($ip, $userAgent),
+                'user_agent' => $userAgent,
                 'started_at' => gmdate('Y-m-d\TH:i:s\Z'),
             ],
         ];
