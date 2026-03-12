@@ -71,7 +71,7 @@ $userId = Mbuzz::userId();
 ```php
 Mbuzz::init([
     'api_key' => 'sk_live_...',           // Required: Your Mbuzz API key
-    'api_url' => 'https://mbuzz.co/api/v1', // Optional: API URL (for self-hosted)
+    'api_url' => 'https://api.mbuzz.co/api/v1', // Optional: API URL (for self-hosted)
     'enabled' => true,                      // Optional: Enable/disable tracking
     'debug' => false,                       // Optional: Log API requests
     'timeout' => 5,                         // Optional: HTTP timeout in seconds

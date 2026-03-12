@@ -253,4 +253,26 @@ class TrackRequestTest extends TestCase
         $this->assertArrayNotHasKey('ip', $event);
         $this->assertArrayNotHasKey('user_agent', $event);
     }
+
+    public function testSendIncludesIdentifierInPayload(): void
+    {
+        $request = new TrackRequest(
+            eventType: 'page_view',
+            visitorId: str_repeat('a', 64),
+            identifier: ['email' => 'user@example.com'],
+        );
+
+        $api = $this->createMockApi();
+
+        $capturedPayload = null;
+        $api->setTransport(function($method, $url, $payload) use (&$capturedPayload) {
+            $capturedPayload = json_decode($payload, true);
+            return ['status' => 202, 'body' => ['events' => [['id' => 'evt_123']]]];
+        });
+
+        $request->send($api);
+
+        $event = $capturedPayload['events'][0];
+        $this->assertEquals(['email' => 'user@example.com'], $event['identifier']);
+    }
 }

@@ -8,7 +8,7 @@ use InvalidArgumentException;
 
 final class Config
 {
-    private const DEFAULT_API_URL = 'https://mbuzz.co/api/v1';
+    private const DEFAULT_API_URL = 'https://api.mbuzz.co/api/v1';
     private const DEFAULT_TIMEOUT = 5;
 
     private const DEFAULT_SKIP_PATHS = [

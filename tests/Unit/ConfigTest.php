@@ -60,7 +60,7 @@ class ConfigTest extends TestCase
         $config = Config::getInstance();
         $config->init(['api_key' => 'sk_test_abc123']);
 
-        $this->assertEquals('https://mbuzz.co/api/v1', $config->getApiUrl());
+        $this->assertEquals('https://api.mbuzz.co/api/v1', $config->getApiUrl());
     }
 
     public function testInitAllowsCustomApiUrl(): void
