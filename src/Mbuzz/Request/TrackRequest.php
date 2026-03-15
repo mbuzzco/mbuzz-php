@@ -63,6 +63,9 @@ final class TrackRequest
         $response = $api->postWithResponse('/events', $payload);
 
         if ($response === null || empty($response['events'])) {
+            if (isset($response['status']) && $response['status'] === 'accepted') {
+                return ['success' => true, 'event_id' => null, 'event_type' => $this->eventType, 'visitor_id' => $this->visitorId];
+            }
             return false;
         }
 

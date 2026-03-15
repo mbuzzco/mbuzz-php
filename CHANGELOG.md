@@ -1,10 +1,20 @@
 # Changelog
 
+## 0.8.2 (2026-03-15)
+
+### Changed
+
+- **Removed `api_url` from `init()` options** — the proxy URL (`https://api.mbuzz.co/api/v1`) is now hardcoded. This prevents accidental bypass of the edge ingest proxy.
+
+### Fixed
+
+- **`event()` and `conversion()` now handle proxy-buffered responses gracefully** — when the edge proxy accepts a request but Rails is temporarily unreachable, the SDK returns success with nil IDs instead of `false`.
+
 ## 0.8.0 (2026-03-13)
 
 ### Changed
 
-- **Default API URL updated to `https://api.mbuzz.co/api/v1`** — traffic now routes through the edge ingest proxy for improved reliability. The previous URL (`https://mbuzz.co/api/v1`) remains supported as a configurable fallback via `api_url`.
+- **Default API URL updated to `https://api.mbuzz.co/api/v1`** — traffic now routes through the edge ingest proxy for improved reliability.
 
 ## 0.7.3 (2026-02-03)
 

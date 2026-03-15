@@ -21,7 +21,6 @@ final class Mbuzz
      *
      * @param array{
      *   api_key: string,
-     *   api_url?: string,
      *   enabled?: bool,
      *   debug?: bool,
      *   timeout?: int,

@@ -75,7 +75,6 @@ final class Config
      *
      * @param array{
      *   api_key: string,
-     *   api_url?: string,
      *   enabled?: bool,
      *   debug?: bool,
      *   timeout?: int,
@@ -92,7 +91,7 @@ final class Config
         }
 
         $this->apiKey = $apiKey;
-        $this->apiUrl = rtrim($options['api_url'] ?? self::DEFAULT_API_URL, '/');
+        $this->apiUrl = rtrim(self::DEFAULT_API_URL, '/');
         $this->enabled = $options['enabled'] ?? true;
         $this->debug = $options['debug'] ?? false;
         $this->timeout = $options['timeout'] ?? self::DEFAULT_TIMEOUT;

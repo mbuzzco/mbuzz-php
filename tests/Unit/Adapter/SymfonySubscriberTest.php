@@ -23,7 +23,6 @@ class SymfonySubscriberTest extends TestCase
         // Set up a mock transport to avoid real HTTP calls
         Mbuzz::init([
             'api_key' => 'sk_test_symfony_test',
-            'api_url' => 'http://localhost:3000/api/v1',
         ]);
 
         // Mock the transport
@@ -114,7 +113,6 @@ class SymfonySubscriberTest extends TestCase
         Mbuzz::reset();
         Mbuzz::init([
             'api_key' => 'sk_test_symfony_test',
-            'api_url' => 'http://localhost:3000/api/v1',
         ]);
         $client = Mbuzz::getClient();
         $client->setTransport(function () {

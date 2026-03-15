@@ -62,7 +62,6 @@ class ApiTest extends TestCase
         $config = Config::getInstance();
         $config->init([
             'api_key' => 'sk_test_abc123',
-            'api_url' => 'https://test.api.com/v1',
         ]);
 
         $api = new Api($config);
@@ -76,7 +75,7 @@ class ApiTest extends TestCase
 
         $api->post('/events', []);
 
-        $this->assertEquals('https://test.api.com/v1/events', $requests[0]['url']);
+        $this->assertEquals('https://api.mbuzz.co/api/v1/events', $requests[0]['url']);
     }
 
     public function testPathWithLeadingSlashIsHandled(): void
@@ -84,7 +83,6 @@ class ApiTest extends TestCase
         $config = Config::getInstance();
         $config->init([
             'api_key' => 'sk_test_abc123',
-            'api_url' => 'https://test.api.com/v1',
         ]);
 
         $api = new Api($config);

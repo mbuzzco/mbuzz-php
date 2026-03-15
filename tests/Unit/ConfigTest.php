@@ -63,7 +63,7 @@ class ConfigTest extends TestCase
         $this->assertEquals('https://api.mbuzz.co/api/v1', $config->getApiUrl());
     }
 
-    public function testInitAllowsCustomApiUrl(): void
+    public function testApiUrlIgnoredInOptions(): void
     {
         $config = Config::getInstance();
         $config->init([
@@ -71,18 +71,8 @@ class ConfigTest extends TestCase
             'api_url' => 'https://custom.api.com/v1',
         ]);
 
-        $this->assertEquals('https://custom.api.com/v1', $config->getApiUrl());
-    }
-
-    public function testApiUrlRemovesTrailingSlash(): void
-    {
-        $config = Config::getInstance();
-        $config->init([
-            'api_key' => 'sk_test_abc123',
-            'api_url' => 'https://custom.api.com/v1/',
-        ]);
-
-        $this->assertEquals('https://custom.api.com/v1', $config->getApiUrl());
+        // api_url in options is silently ignored — always uses default
+        $this->assertEquals('https://api.mbuzz.co/api/v1', $config->getApiUrl());
     }
 
     public function testDefaultEnabledIsTrue(): void
