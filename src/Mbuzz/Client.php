@@ -33,7 +33,7 @@ final class Client
     }
 
     /**
-     * Initialize context from request (cookies)
+     * Initialize context from request (cookies) and create session if navigation
      */
     public function initFromRequest(): void
     {
@@ -50,6 +50,34 @@ final class Client
 
         // Initialize context from cookies
         $this->context->initialize($this->cookies);
+
+        // Create session for real page navigations (when visitor exists)
+        if ($this->context->getVisitorId() !== null && NavigationDetector::shouldCreateSession()) {
+            $this->createSession();
+        }
+    }
+
+    /**
+     * Create a server-side session via POST /sessions.
+     * Synchronous — PHP has no fire-and-forget threading.
+     */
+    private function createSession(): void
+    {
+        $ip = $this->context->getClientIp() ?? 'unknown';
+        $userAgent = $this->context->getUserAgent() ?? 'unknown';
+
+        $payload = [
+            'session' => [
+                'visitor_id' => $this->context->getVisitorId(),
+                'session_id' => IdGenerator::generateUuid(),
+                'url' => $this->context->getUrl(),
+                'referrer' => $this->context->getReferrer(),
+                'device_fingerprint' => Fingerprint::compute($ip, $userAgent),
+                'started_at' => gmdate('Y-m-d\TH:i:s\Z'),
+            ],
+        ];
+
+        $this->api->post('/sessions', $payload);
     }
 
     /**
