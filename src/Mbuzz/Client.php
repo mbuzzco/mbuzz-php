@@ -33,6 +33,48 @@ final class Client
     }
 
     /**
+     * Register a 2xx-response listener. See Api::onSuccess() for the signature.
+     */
+    public function onSuccess(callable $listener): void
+    {
+        $this->api->onSuccess($listener);
+    }
+
+    /**
+     * Register a non-2xx / exception listener. See Api::onError() for the signature.
+     */
+    public function onError(callable $listener): void
+    {
+        $this->api->onError($listener);
+    }
+
+    /**
+     * Drain the deferred POST queue immediately rather than waiting for
+     * the shutdown handler. Intended for long-running workers (WP-CLI
+     * imports, queue consumers) where shutdown doesn't fire between jobs.
+     */
+    public function flush(): void
+    {
+        $this->api->flushDeferred();
+    }
+
+    /**
+     * Validate an API key against GET /validate.
+     *
+     * @param string|null $apiKey  Key to validate. Null = use the currently-configured key.
+     * @return array<string, mixed>|false  Response body on success, false on failure.
+     */
+    public function validate(?string $apiKey = null): array|false
+    {
+        $effectiveKey = $apiKey ?? $this->config->getApiKey();
+        if ($effectiveKey === '') {
+            return false;
+        }
+
+        return $this->api->probeValidate($effectiveKey);
+    }
+
+    /**
      * Initialize context from request (cookies) and create session if navigation
      */
     public function initFromRequest(): void

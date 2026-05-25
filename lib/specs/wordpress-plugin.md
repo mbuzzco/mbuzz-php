@@ -1,8 +1,8 @@
 # Mbuzz for WordPress — Plugin Specification
 
-**Status:** Draft (2026-05-25)
+**Status:** Draft, rev 2 (2026-05-26)
 **Owner:** SDK team
-**Depends on:** `mbuzz/mbuzz-php` ≥ 1.1.0 (async POST dispatch, Laravel + PSR-15 adapters)
+**Depends on:** `mbuzz/mbuzz-php` ≥ 1.2.0 — adds `Client::flush()` for the WP-CLI `flush` command (see §9). 1.1.0 ships async POST dispatch and the Laravel + PSR-15 adapters this plugin builds on.
 **Slug:** `mbuzz-attribution`
 
 ---
@@ -49,7 +49,7 @@ wp-content/plugins/mbuzz-attribution/
 │   ├── Integrations/
 │   │   ├── WooCommerce.php
 │   │   ├── EasyDigitalDownloads.php
-│   │   ├── ContactForm7.php
+│   │   ├── ContactForm7.php       # Hooks `wpcf7_submit` (not `wpcf7_mail_sent` — see §7)
 │   │   ├── GravityForms.php
 │   │   ├── WPForms.php
 │   │   ├── FluentForms.php
@@ -61,8 +61,11 @@ wp-content/plugins/mbuzz-attribution/
 │   │   ├── Consent.php           # WP Consent API integration
 │   │   └── Exporter.php          # wp_privacy_personal_data_exporters
 │   └── Block/
-│       ├── TrackedButton.php     # Gutenberg block w/ event tracking
-│       └── block.json
+│       ├── TrackedButton.php     # Gutenberg block PHP-side registration
+│       └── tracked-button/
+│           ├── block.json        # One dir per block — WP convention
+│           ├── index.js          # Editor script
+│           └── view.js           # Front-end pixel hook
 └── tests/                        # PHPUnit + WP_UnitTestCase via wp-env
 ```
 
@@ -70,7 +73,9 @@ wp-content/plugins/mbuzz-attribution/
 
 - Plugin **bundles** the `mbuzz/mbuzz-php` SDK under `vendor/` via Composer in the build step.
 - Namespace-scoped via `php-scoper` to avoid clashes when another plugin ships a different SDK version. Scoped prefix: `Mbuzz\Vendor\` (so `Mbuzz\Vendor\Mbuzz\Mbuzz` is the actual class at runtime, with our own thin facade `Mbuzz\WP\Sdk` keeping the call sites pretty).
-- WP requires PHP 7.4+; SDK requires 8.1+. **Plugin requires PHP 8.1+** — declared in `mbuzz-attribution.php` header, enforced at activation with `WP_PHP_VERSION_ERROR` admin notice.
+- **Theme/snippet escape hatch.** Theme code copy-pasted from the SDK docs calls `\Mbuzz\Mbuzz::event(...)`, which won't exist after scoping. Bootstrap ships two unscoped procedural helpers — `mbuzz_event(string $type, array $props = [])` and `mbuzz_conversion(string $type, array $opts = [])` — that delegate to the scoped class. Documented as the supported surface for theme integrators. (`class_alias` was considered and rejected: aliasing back to the unscoped name re-introduces the very collision risk scoping was meant to prevent.)
+- **Cookie is the cross-plugin integration point.** `_mbuzz_vid` is read/written by whichever scoped SDK runs first; subsequent SDK copies (from other plugins) see the same value. Do not rename the cookie in a future scoper config — it's intentionally outside the scoped surface.
+- WP requires PHP 7.4+; SDK requires 8.1+. **Plugin requires PHP 8.1+** — declared via the `Requires PHP: 8.1` header in `mbuzz-attribution.php` (WP ≥ 5.1 honors this and refuses activation on older PHP). Belt-and-braces: the activation hook runs `version_compare(PHP_VERSION, '8.1', '<')` and calls `deactivate_plugins()` + sets a transient that renders an admin notice on the next request, since the header check still allows old WP versions to activate.
 
 ---
 
@@ -90,7 +95,7 @@ wp-content/plugins/mbuzz-attribution/
 
 - **Activation:** Set default option values; schedule no cron jobs (the SDK is event-driven). Display an admin notice if API key is missing: "Mbuzz is installed but inactive — add your API key in Settings → Mbuzz."
 - **Deactivation:** Nothing. Settings persist.
-- **Uninstall:** `uninstall.php` deletes the `mbuzz_attribution_*` option row.
+- **Uninstall:** `uninstall.php` deletes the single `mbuzz_attribution_settings` option (one serialized array — all fields from §4 live under this key) plus the `mbuzz_attribution_last_call` and `mbuzz_attribution_php_notice` transients.
 
 ---
 
@@ -141,7 +146,7 @@ Below the form: a card showing
 | `wp_login` (`$user_login`, `$user`) | `Mbuzz::identify($user->ID, ['email' => $user->user_email, 'name' => $user->display_name, 'role' => $user->roles[0] ?? null])` |
 | `user_register` (`$user_id`) | Load user, `identify(...)` + `Mbuzz::conversion('signup', ['user_id' => $user_id, 'is_acquisition' => true])` |
 | `profile_update` | Re-`identify` if email changed. |
-| `wp_logout` | No-op. SDK has no `reset()` semantics for "log out" — we leave the visitor cookie so attribution survives. |
+| `wp_logout` | No-op. SDK has no `reset()` semantics for "log out" — we leave the visitor cookie so attribution survives across login sessions. Trade-off: on a shared machine, the next person to use the browser inherits the previous user's anonymous visitor id until they log in (at which point `identify` rebinds it). Right call for the typical solo-laptop case; explicit so a privacy reviewer doesn't have to ask. |
 
 **Setting "Identify users at: every page":** adds a `template_redirect` callback that re-identifies the current user on every page load. Useful for sites where the WP login session can outlive the visitor cookie or where the visitor cookie can be rotated by privacy tools.
 
@@ -154,7 +159,8 @@ The single most-requested integration. Hooks:
 | Hook | Mapped to |
 |---|---|
 | `woocommerce_thankyou` (`$order_id`) | `conversion('purchase', [...])` — see below |
-| `woocommerce_order_status_completed` | Fallback for orders that skip the thank-you page (renewals, admin-marked). Deduped against thankyou via order meta `_mbuzz_conversion_id`. |
+| `woocommerce_order_status_processing` | Fires for orders that reach paid state on a gateway that stops at `processing` (Stripe + digital goods is the common case). Deduped via order meta `_mbuzz_conversion_id`. |
+| `woocommerce_order_status_completed` | Fallback for orders that skip the thank-you page (renewals, admin-marked) and never went through `processing`. Same dedupe. |
 | `woocommerce_order_refunded` | `conversion('refund', ['revenue' => -$refund_total, 'properties' => ['original_order_id' => $order_id]])` |
 | `woocommerce_subscription_renewal_payment_complete` (WooCommerce Subscriptions) | `conversion('payment', ['user_id' => $user_id, 'revenue' => $renewal_total, 'inherit_acquisition' => true])` |
 | `woocommerce_checkout_order_processed` | No conversion fired here — that hook runs before payment confirms; would double-count. |
@@ -187,7 +193,9 @@ Mbuzz::conversion('purchase', [
 ]);
 ```
 
-The order is marked with `update_post_meta($order_id, '_mbuzz_conversion_id', $result['conversion_id'])` to enable dedupe + audit.
+The order is marked with the returned conversion id to enable dedupe + audit. Storage call must be HPOS-safe: `$order->update_meta_data('_mbuzz_conversion_id', $result['conversion_id']); $order->save();` rather than `update_post_meta()`, which is a no-op against the HPOS orders table.
+
+**Counting rule.** The first of `woocommerce_thankyou`, `woocommerce_order_status_processing`, or `woocommerce_order_status_completed` to fire for a given order wins; the order meta dedupe keys the rest out. This handles three real cases: (a) standard checkout — thankyou fires first; (b) digital goods on Stripe that never leave `processing` — processing fires; (c) admin-marked or renewal orders that skip the customer-facing pages — completed fires.
 
 ### Guest checkouts
 
@@ -216,7 +224,7 @@ All optional — the integration class checks if the host plugin is active (`cla
 | Plugin | Hook | Conversion |
 |---|---|---|
 | **Easy Digital Downloads** | `edd_complete_purchase` | `purchase` with `revenue`, `payment_id`, downloads |
-| **Contact Form 7** | `wpcf7_mail_sent` | `lead` with form ID + form title in properties |
+| **Contact Form 7** | `wpcf7_submit` (gated on `$result['status'] ∈ {'mail_sent', 'demo_mode'}`) | `lead` with form ID + form title in properties. Why not `wpcf7_mail_sent`: forms configured for webhook/CRM-only delivery skip email and never fire that hook. |
 | **Gravity Forms** | `gform_after_submission` | `lead` with form ID; `identifier.email` if an email field exists |
 | **WPForms** | `wpforms_process_complete` | `lead` |
 | **Fluent Forms** | `fluentform/submission_inserted` | `lead` |
@@ -258,13 +266,15 @@ wp mbuzz conversion <type> [--user_id=…] [--revenue=…] [--properties='{}']
 
 All commands respect `--dry-run` and `--debug`.
 
+**`flush` depends on a new SDK method.** The SDK 1.1.0 deferred queue is private (`Api::flushDeferred()` is internal, registered on `register_shutdown_function`). `wp mbuzz flush` requires a public `Client::flush()` in SDK 1.2.0 that proxies to it; ship that first or drop the command from v1 scope. WP-CLI is the one place this matters — under FPM the shutdown handler runs anyway, but CLI processes don't go through shutdown until the whole script exits, so long-running migration/import scripts accumulate the queue unbounded.
+
 ---
 
 ## 10. Multisite
 
 - Plugin can be **network-activated** or per-site.
 - Settings are **per-site** (in `wp_options`, not `wp_sitemeta`). Network admin defaults live in `wp-config.php` constants.
-- `Mbuzz::reset()` called on `switch_blog` so each site's request gets its own SDK instance bound to its own API key.
+- On `switch_blog`: call `Mbuzz::reset()` **and then immediately `Mbuzz::init()` again** with the freshly-resolved site's settings. `reset()` alone nulls the static client and the next SDK call throws `RuntimeException` from `Mbuzz::ensureInitialized()`. The `Bootstrap` class exposes a `boot(array $settings): void` method so `switch_blog` handlers can call `Bootstrap::boot(Settings::current())` without re-implementing the init pipeline. Same flow runs on `restore_current_blog`.
 
 ---
 
@@ -275,18 +285,25 @@ All commands respect `--dry-run` and `--debug`.
 If [`WP Consent Level API`](https://wordpress.org/plugins/wp-consent-api/) is active:
 
 - Plugin **registers** as a consent-aware plugin with category `statistics`.
-- All tracking calls are gated on `wp_has_consent('statistics')`. When consent is missing the SDK's `enabled` is set to false for the duration of the request.
-- No cookie is set without consent — `_mbuzz_vid` only writes after `wp_has_consent` returns truthy.
+- **Gating happens at call-site, not at init.** Consent plugins resolve their state asynchronously (often after `plugins_loaded`, sometimes only after `wp` once the page knows whether it's a cached page, a REST request, etc.). Init-time `enabled => false` would either be wrong half the time or force us to defer init past `plugins_loaded`. Instead: `Mbuzz::init()` runs normally; every tracking hook this plugin registers wraps its `Mbuzz::event()` / `conversion()` / `identify()` call in `if (! Consent::allows()) return;`, where `Consent::allows()` returns `true` when the Consent API is absent and `wp_has_consent('statistics')` when it's present.
+- No cookie is set without consent — `_mbuzz_vid` writes are gated through the same `Consent::allows()` check before `Mbuzz::initFromRequest()` runs.
 
 When the Consent API is not installed: tracking runs unconditionally (matches the SDK's default and current behavior).
 
+### Persisted personal data
+
+What the plugin actually stores per data subject:
+
+- **Order meta** (HPOS-safe): `_mbuzz_conversion_id` on each WooCommerce/EDD order, recording the conversion id returned by the backend. Indirect link to the user via `$order->get_user_id()` (or billing email for guest checkouts).
+- **User meta:** `_mbuzz_last_identified_at` (timestamp), `_mbuzz_last_conversion_id` (most recent). Written by the identify hooks (§5) and the WC/EDD conversion hooks (§6, §7). Kept deliberately small — anything more belongs in the backend, not in `wp_usermeta`.
+
 ### Personal data exporter
 
-Registers a `wp_privacy_personal_data_exporters` callback that exports any `_mbuzz_*` user meta for GDPR/CCPA data subject requests.
+Registers a `wp_privacy_personal_data_exporters` callback that exports the `_mbuzz_*` user meta listed above **plus** the `_mbuzz_conversion_id` order meta for every order owned by (or with billing email matching) the data subject.
 
 ### Personal data eraser
 
-Registers a `wp_privacy_personal_data_erasers` callback that deletes `_mbuzz_*` user meta and pings the backend with a `forget` request (backend endpoint TBD — out of scope for v1 if backend isn't ready).
+Registers a `wp_privacy_personal_data_erasers` callback that deletes the same `_mbuzz_*` user meta and order meta, then pings the backend with a `forget` request (backend endpoint TBD — out of scope for v1 if backend isn't ready; until then the eraser deletes local meta and reports the backend step as "retained" per WP eraser contract).
 
 ---
 
@@ -368,10 +385,12 @@ The SDK's `setTransport()` is the seam — integration tests configure it once i
 ## 17. Open Questions
 
 1. **Should the plugin ship its own JS pixel** (bundled, no CDN dependency) or load `pixel.mbuzz.co/p.js`? Bundling is more WP.org-friendly; loading from CDN gives instant fixes. Recommend: bundle, with the CDN URL as a hidden override constant for fast hotfix.
-2. **WooCommerce HPOS compatibility:** confirmed `wc_get_orders` works under HPOS, but `update_post_meta` for the dedupe marker needs to swap to `$order->update_meta_data` + `save()`. Cheap fix — flag here, do in code.
-3. **WP Multisite shared API key:** some networks will want one key for the whole network. Resolved by `wp-config.php` constants for v1; revisit a network-admin UI in v1.1 if there's demand.
-4. **Order status mapping:** is `processing` enough to count, or do we wait for `completed`? Some stores (digital goods on Stripe) never leave `processing`. Default: count on `processing` OR `completed`, whichever fires first; dedupe via meta.
-5. **Pixel + server-side dedupe:** if both the JS pixel and the server-side `purchase` hook fire, backend needs to dedupe by `properties.order_id`. Backend ticket required before GA.
+2. **WP Multisite shared API key:** some networks will want one key for the whole network. Resolved by `wp-config.php` constants for v1; revisit a network-admin UI in v1.1 if there's demand.
+3. **Pixel + server-side dedupe:** if both the JS pixel and the server-side `purchase` hook fire, backend needs to dedupe by `properties.order_id`. Backend ticket required before GA.
+
+Resolved upstream and folded into the spec:
+- WooCommerce HPOS — §6 now specifies `$order->update_meta_data()` + `save()`.
+- Order status counting (`processing` vs. `completed`) — §6 "Counting rule" spells out the first-wins behavior.
 
 ---
 

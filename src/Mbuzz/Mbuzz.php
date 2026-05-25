@@ -122,6 +122,55 @@ final class Mbuzz
     }
 
     /**
+     * Drain the deferred POST queue immediately.
+     *
+     * Intended for long-running workers (WP-CLI imports, queue consumers)
+     * where the shutdown handler doesn't fire between jobs. Safe to call
+     * repeatedly — the queue is consumed on each call.
+     */
+    public static function flush(): void
+    {
+        self::ensureInitialized();
+        self::$client->flush();
+    }
+
+    /**
+     * Validate an API key against the backend.
+     *
+     * @param string|null $apiKey  Candidate key to validate. Null = validate the
+     *                             currently-configured key. Either way, live
+     *                             config is not mutated.
+     * @return array<string, mixed>|false  Backend response body on 2xx, false otherwise.
+     */
+    public static function validate(?string $apiKey = null): array|false
+    {
+        self::ensureInitialized();
+        return self::$client->validate($apiKey);
+    }
+
+    /**
+     * Register a 2xx-response listener. Fires for immediate and deferred POSTs.
+     *
+     * @param callable $listener function(string $method, string $url, int $status, ?array $body): void
+     */
+    public static function onSuccess(callable $listener): void
+    {
+        self::ensureInitialized();
+        self::$client->onSuccess($listener);
+    }
+
+    /**
+     * Register a non-2xx / transport-exception listener.
+     *
+     * @param callable $listener function(string $method, string $url, int $status, ?array $body, ?\Throwable $exception): void
+     */
+    public static function onError(callable $listener): void
+    {
+        self::ensureInitialized();
+        self::$client->onError($listener);
+    }
+
+    /**
      * Reset SDK state (for testing or request cleanup in long-running processes)
      */
     public static function reset(): void

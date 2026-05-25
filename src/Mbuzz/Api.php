@@ -6,7 +6,7 @@ namespace Mbuzz;
 
 final class Api
 {
-    private const USER_AGENT = 'mbuzz-php/1.1.0';
+    private const USER_AGENT = 'mbuzz-php/1.2.0';
 
     private Config $config;
 
@@ -19,6 +19,12 @@ final class Api
     private array $deferredQueue = [];
 
     private bool $shutdownRegistered = false;
+
+    /** @var array<int, callable> */
+    private array $successListeners = [];
+
+    /** @var array<int, callable> */
+    private array $errorListeners = [];
 
     public function __construct(Config $config)
     {
@@ -36,6 +42,28 @@ final class Api
     public function setTransport(callable $transport): void
     {
         $this->transport = $transport;
+    }
+
+    /**
+     * Register a listener for 2xx responses. Fires for both immediate and
+     * deferred POSTs (the latter on the shutdown path).
+     *
+     * @param callable $listener function(string $method, string $url, int $status, ?array $body): void
+     */
+    public function onSuccess(callable $listener): void
+    {
+        $this->successListeners[] = $listener;
+    }
+
+    /**
+     * Register a listener for non-2xx responses and transport exceptions.
+     * status will be 0 when the exception fired before a response was received.
+     *
+     * @param callable $listener function(string $method, string $url, int $status, ?array $body, ?\Throwable $exception): void
+     */
+    public function onError(callable $listener): void
+    {
+        $this->errorListeners[] = $listener;
     }
 
     /**
@@ -173,15 +201,104 @@ final class Api
 
         $this->log("Request: {$method} {$url}", $payload ?? []);
 
-        if ($this->transport !== null) {
-            $response = ($this->transport)($method, $url, $jsonPayload, $headers, $timeout);
-        } else {
-            $response = $this->curlRequest($method, $url, $jsonPayload, $headers, $timeout);
+        try {
+            if ($this->transport !== null) {
+                $response = ($this->transport)($method, $url, $jsonPayload, $headers, $timeout);
+            } else {
+                $response = $this->curlRequest($method, $url, $jsonPayload, $headers, $timeout);
+            }
+        } catch (\Throwable $e) {
+            $this->notifyError($method, $url, 0, null, $e);
+            throw $e;
         }
 
         $this->log("Response: {$response['status']}", is_array($response['body']) ? $response['body'] : []);
 
+        $status = $response['status'];
+        $body = is_array($response['body']) ? $response['body'] : null;
+
+        if ($status >= 200 && $status < 300) {
+            $this->notifySuccess($method, $url, $status, $body);
+        } else {
+            $this->notifyError($method, $url, $status, $body, null);
+        }
+
         return $response;
+    }
+
+    /**
+     * One-shot API key probe against GET /validate.
+     *
+     * Bypasses the enabled flag — validation is a setup-time check, distinct
+     * from tracking. The provided key overrides the configured Authorization
+     * header so callers (e.g. the WP plugin's settings form) can verify a
+     * candidate key without mutating live config.
+     *
+     * @return array<string, mixed>|false  Response body on 2xx (empty array if body is null), false otherwise.
+     */
+    public function probeValidate(string $apiKey): array|false
+    {
+        $url = $this->config->getApiUrl() . '/validate';
+        $headers = [
+            'Authorization: Bearer ' . $apiKey,
+            'Content-Type: application/json',
+            'User-Agent: ' . self::USER_AGENT,
+        ];
+
+        $this->log("Request: GET {$url} (validate)");
+
+        try {
+            if ($this->transport !== null) {
+                $response = ($this->transport)('GET', $url, null, $headers, null);
+            } else {
+                $response = $this->curlRequest('GET', $url, null, $headers, null);
+            }
+        } catch (\Throwable $e) {
+            $this->notifyError('GET', $url, 0, null, $e);
+            $this->log("Validation error: {$e->getMessage()}");
+            return false;
+        }
+
+        $status = $response['status'];
+        $body = is_array($response['body']) ? $response['body'] : null;
+
+        $this->log("Response: {$status}", $body ?? []);
+
+        if ($status >= 200 && $status < 300) {
+            $this->notifySuccess('GET', $url, $status, $body);
+            return $body ?? [];
+        }
+
+        $this->notifyError('GET', $url, $status, $body, null);
+        return false;
+    }
+
+    /**
+     * @param array<string, mixed>|null $body
+     */
+    private function notifySuccess(string $method, string $url, int $status, ?array $body): void
+    {
+        foreach ($this->successListeners as $listener) {
+            try {
+                $listener($method, $url, $status, $body);
+            } catch (\Throwable $e) {
+                $this->log("Success listener threw: {$e->getMessage()}");
+            }
+        }
+    }
+
+    /**
+     * @param array<string, mixed>|null $body
+     */
+    private function notifyError(string $method, string $url, int $status, ?array $body, ?\Throwable $exception): void
+    {
+        foreach ($this->errorListeners as $listener) {
+            try {
+                $listener($method, $url, $status, $body, $exception);
+            } catch (\Throwable $e) {
+                $this->log("Error listener threw: {$e->getMessage()}");
+            }
+        }
     }
 
     /**

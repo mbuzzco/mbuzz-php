@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.2.0 (2026-05-26)
+
+Additive release driven by the upcoming WordPress plugin (`mbuzz-attribution`). No breaking changes.
+
+### Added
+
+- **`Mbuzz::flush()` / `Client::flush()`** — drains the deferred POST queue immediately rather than waiting for the shutdown handler. Needed by long-running workers (WP-CLI imports, queue consumers) where `register_shutdown_function` doesn't fire between jobs.
+- **`Mbuzz::validate(?string $apiKey = null)` / `Client::validate(?string $apiKey = null)`** — one-shot probe against `GET /validate`. Pass a candidate key to check it without mutating live config (settings-page validate-on-save); pass null to check the currently-configured key. Bypasses the `enabled` flag — validation is a setup-time check, distinct from tracking.
+- **`Mbuzz::onSuccess(callable)` / `Mbuzz::onError(callable)`** (mirrored on `Client` and `Api`) — observer hooks fired for every API response, including async ones that resolve during shutdown. Multiple listeners supported; registration order preserved; a throwing listener is logged and skipped without affecting other listeners or the originating call. Success signature: `fn(string $method, string $url, int $status, ?array $body)`. Error signature adds `?\Throwable $exception` (set when the transport itself raised; null on a non-2xx response).
+
+### Changed
+
+- **`Api::USER_AGENT`** bumped to `mbuzz-php/1.2.0`.
+
 ## 1.1.0 (2026-05-25)
 
 > Versioning note: an orphan `v1.0.0` tag from December 2025 pointed at a much
