@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.1.0 (2026-05-25)
+
+> Versioning note: an orphan `v1.0.0` tag from December 2025 pointed at a much
+> earlier "initial release" commit and was the highest stable version on
+> Packagist, even though active development continued on the 0.7.x / 0.8.x
+> line. Rather than rewrite remote tag history, we're moving forward as 1.x
+> from this release on.
+
+### Added
+
+- **Laravel adapter** — `Mbuzz\Adapter\LaravelMiddleware`, duck-typed against the `handle($request, Closure $next)` contract so the SDK stays free of Illuminate imports.
+- **PSR-15 adapter** — `Mbuzz\Adapter\Psr15Middleware`, works with Slim, Mezzio, Hyperf, and any PSR-15 compliant framework. Requires `psr/http-server-middleware` (declared under `suggest`).
+- **Per-call timeout** on `Api::post()` / `Api::postWithResponse()` — the third positional argument overrides the config default.
+
+### Changed
+
+- **`Api::post()` is now non-blocking on FPM / LiteSpeed.** Calls are queued and flushed in the shutdown phase after `fastcgi_finish_request` / `litespeed_finish_request`, so a slow API server no longer stalls page renders. Falls back to running synchronously in shutdown on CLI / plain CGI. `Api::postWithResponse()` stays synchronous because callers want the response body (event_id, conversion_id, attribution).
+- **Session POST capped at 2 seconds** — `Client::createSession()` passes a tight `SESSION_POST_TIMEOUT` as a backstop for environments where the new deferral path isn't available.
+
+### Fixed
+
+- **README** no longer claims a `LaravelMiddleware` and `Mbuzz\Middleware\TrackingMiddleware` that didn't exist; the documented integrations now match the shipped code.
+
 ## 0.8.2 (2026-03-15)
 
 ### Changed

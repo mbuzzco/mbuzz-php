@@ -181,6 +181,31 @@ class ClientIntegrationTest extends TestCase
         $this->assertEquals('user_123', $conversionPayload['user_id']);
     }
 
+    public function testCreateSessionUses2sTimeout(): void
+    {
+        $_SERVER['HTTP_SEC_FETCH_MODE'] = 'navigate';
+        $_SERVER['HTTP_SEC_FETCH_DEST'] = 'document';
+
+        try {
+            $client = $this->createClient();
+
+            $capturedTimeout = null;
+            $capturedUrl = null;
+            $client->setTransport(function($method, $url, $payload, $headers, $timeout) use (&$capturedTimeout, &$capturedUrl) {
+                $capturedUrl = $url;
+                $capturedTimeout = $timeout;
+                return ['status' => 202, 'body' => null];
+            });
+
+            $client->initFromRequest();
+
+            $this->assertStringEndsWith('/sessions', $capturedUrl ?? '', 'session POST should fire on navigation');
+            $this->assertSame(2, $capturedTimeout, 'session POST should use the short 2s timeout');
+        } finally {
+            unset($_SERVER['HTTP_SEC_FETCH_MODE'], $_SERVER['HTTP_SEC_FETCH_DEST']);
+        }
+    }
+
     public function testConversionPassesAllContextFields(): void
     {
         $client = $this->createClient();

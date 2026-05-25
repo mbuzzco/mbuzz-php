@@ -58,8 +58,14 @@ final class Client
     }
 
     /**
+     * Tight upper bound on the session POST. Api::post() defers to the
+     * shutdown phase on FPM/LiteSpeed so this only matters when deferral
+     * isn't available (CLI, plain CGI) — there it caps the worker stall.
+     */
+    private const SESSION_POST_TIMEOUT = 2;
+
+    /**
      * Create a server-side session via POST /sessions.
-     * Synchronous — PHP has no fire-and-forget threading.
      */
     private function createSession(): void
     {
@@ -78,7 +84,7 @@ final class Client
             ],
         ];
 
-        $this->api->post('/sessions', $payload);
+        $this->api->post('/sessions', $payload, self::SESSION_POST_TIMEOUT);
     }
 
     /**

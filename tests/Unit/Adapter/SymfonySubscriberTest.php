@@ -47,13 +47,23 @@ class SymfonySubscriberTest extends TestCase
 
     public function testOnKernelRequestInitializesTracking(): void
     {
+        // Visitor IDs come from the cookie (the SDK no longer auto-generates
+        // them server-side). Seed one so we can assert the subscriber wired
+        // it through Context.
+        $existing = str_repeat('s', 64);
+        $_COOKIE['_mbuzz_vid'] = $existing;
+
+        // Re-init so the new CookieManager reads the seeded cookie.
+        Mbuzz::reset();
+        Mbuzz::init(['api_key' => 'sk_test_symfony_test']);
+        Mbuzz::getClient()->setTransport(fn () => ['status' => 200, 'body' => ['success' => true]]);
+
         $subscriber = new SymfonySubscriber();
-        $event = $this->createRequestEvent('/test-page');
+        $subscriber->onKernelRequest($this->createRequestEvent('/test-page'));
 
-        $subscriber->onKernelRequest($event);
+        $this->assertSame($existing, Mbuzz::visitorId());
 
-        // Context should be initialized (visitor only - server handles sessions)
-        $this->assertNotNull(Mbuzz::visitorId());
+        unset($_COOKIE['_mbuzz_vid']);
     }
 
     public function testOnKernelRequestIgnoresSubRequests(): void

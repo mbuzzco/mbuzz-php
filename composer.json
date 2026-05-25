@@ -17,14 +17,18 @@
         "ext-json": "*"
     },
     "require-dev": {
+        "nyholm/psr7": "^1.8",
         "phpunit/phpunit": "^10.0",
-        "symfony/http-kernel": "^6.0 || ^7.0",
+        "psr/http-message": "^2.0",
+        "psr/http-server-middleware": "^1.0",
+        "symfony/event-dispatcher": "^6.0 || ^7.0",
         "symfony/http-foundation": "^6.0 || ^7.0",
-        "symfony/event-dispatcher": "^6.0 || ^7.0"
+        "symfony/http-kernel": "^6.0 || ^7.0"
     },
     "suggest": {
         "symfony/http-kernel": "For Symfony framework integration (SymfonySubscriber)",
-        "symfony/event-dispatcher": "For Symfony framework integration"
+        "symfony/event-dispatcher": "For Symfony framework integration",
+        "psr/http-server-middleware": "For PSR-15 framework integration (Slim, Mezzio) via Psr15Middleware"
     },
     "autoload": {
         "psr-4": {

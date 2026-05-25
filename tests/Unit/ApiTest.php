@@ -272,4 +272,127 @@ class ApiTest extends TestCase
         $this->assertIsArray($decoded);
         $this->assertArrayHasKey('events', $decoded);
     }
+
+    public function testPostPassesPerCallTimeoutToTransport(): void
+    {
+        $config = Config::getInstance();
+        $config->init(['api_key' => 'sk_test_abc123', 'timeout' => 10]);
+
+        $api = new Api($config);
+
+        $capturedTimeout = null;
+        $api->setTransport(function($method, $url, $payload, $headers, $timeout) use (&$capturedTimeout) {
+            $capturedTimeout = $timeout;
+            return ['status' => 202, 'body' => null];
+        });
+
+        $api->post('/sessions', [], 2);
+
+        $this->assertSame(2, $capturedTimeout);
+    }
+
+    public function testPostFallsBackToConfigTimeoutWhenNotSpecified(): void
+    {
+        $config = Config::getInstance();
+        $config->init(['api_key' => 'sk_test_abc123', 'timeout' => 7]);
+
+        $api = new Api($config);
+
+        $capturedTimeout = null;
+        $api->setTransport(function($method, $url, $payload, $headers, $timeout) use (&$capturedTimeout) {
+            $capturedTimeout = $timeout;
+            return ['status' => 202, 'body' => null];
+        });
+
+        $api->post('/events', []);
+
+        // No explicit per-call timeout → transport sees null → curl falls back to config default
+        $this->assertNull($capturedTimeout);
+    }
+
+    public function testPostDefersWhenNoTransportIsSet(): void
+    {
+        $config = Config::getInstance();
+        $config->init(['api_key' => 'sk_test_abc123']);
+
+        $api = new Api($config);
+
+        // Queue with no transport — nothing should be sent yet
+        $result = $api->post('/sessions', ['visitor_id' => 'abc']);
+
+        $this->assertTrue($result, 'queued post returns true optimistically');
+
+        $calls = [];
+        $api->setTransport(function($method, $url, $payload) use (&$calls) {
+            $calls[] = ['method' => $method, 'url' => $url, 'payload' => $payload];
+            return ['status' => 202, 'body' => null];
+        });
+
+        $this->assertCount(0, $calls, 'transport must not run before flushDeferred');
+
+        $api->flushDeferred();
+
+        $this->assertCount(1, $calls);
+        $this->assertSame('POST', $calls[0]['method']);
+        $this->assertSame('https://api.mbuzz.co/api/v1/sessions', $calls[0]['url']);
+    }
+
+    public function testFlushDeferredIsIdempotent(): void
+    {
+        $config = Config::getInstance();
+        $config->init(['api_key' => 'sk_test_abc123']);
+
+        $api = new Api($config);
+        $api->post('/sessions', ['x' => 1]);
+
+        $count = 0;
+        $api->setTransport(function() use (&$count) {
+            $count++;
+            return ['status' => 202, 'body' => null];
+        });
+
+        $api->flushDeferred();
+        $api->flushDeferred();
+
+        $this->assertSame(1, $count);
+    }
+
+    public function testFlushDeferredPreservesPerCallTimeouts(): void
+    {
+        $config = Config::getInstance();
+        $config->init(['api_key' => 'sk_test_abc123', 'timeout' => 10]);
+
+        $api = new Api($config);
+        $api->post('/sessions', ['a' => 1], 2);
+        $api->post('/sessions', ['b' => 2], 3);
+
+        $timeouts = [];
+        $api->setTransport(function($method, $url, $payload, $headers, $timeout) use (&$timeouts) {
+            $timeouts[] = $timeout;
+            return ['status' => 202, 'body' => null];
+        });
+
+        $api->flushDeferred();
+
+        $this->assertSame([2, 3], $timeouts);
+    }
+
+    public function testTransportPathDoesNotDefer(): void
+    {
+        $config = Config::getInstance();
+        $config->init(['api_key' => 'sk_test_abc123']);
+
+        $api = new Api($config);
+
+        $callCount = 0;
+        $api->setTransport(function() use (&$callCount) {
+            $callCount++;
+            return ['status' => 202, 'body' => null];
+        });
+
+        $api->post('/sessions', ['x' => 1]);
+
+        // Synchronous because transport is set — no flushDeferred required.
+        $this->assertSame(1, $callCount);
+    }
 }

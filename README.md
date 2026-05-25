@@ -1,6 +1,7 @@
 # Mbuzz PHP SDK
 
-Multi-touch attribution SDK for PHP. Framework-agnostic design with optional adapters for Laravel, Symfony, and other frameworks.
+Multi-touch attribution SDK for PHP. Framework-agnostic core with first-party
+adapters for Laravel, Symfony, and any PSR-15 framework (Slim, Mezzio, …).
 
 ## Requirements
 
@@ -71,7 +72,6 @@ $userId = Mbuzz::userId();
 ```php
 Mbuzz::init([
     'api_key' => 'sk_live_...',           // Required: Your Mbuzz API key
-    'api_url' => 'https://api.mbuzz.co/api/v1', // Optional: API URL (for self-hosted)
     'enabled' => true,                      // Optional: Enable/disable tracking
     'debug' => false,                       // Optional: Log API requests
     'timeout' => 5,                         // Optional: HTTP timeout in seconds
@@ -79,6 +79,24 @@ Mbuzz::init([
     'skip_extensions' => ['.pdf'],          // Optional: Additional extensions to skip
 ]);
 ```
+
+The API URL is fixed at `https://api.mbuzz.co/api/v1` — all traffic routes
+through the edge ingest proxy.
+
+## Non-blocking dispatch
+
+Fire-and-forget tracking calls (`Mbuzz::initFromRequest()` session creates,
+explicit `Api::post`) are queued and flushed in the PHP shutdown phase. On
+FPM and LiteSpeed the SDK calls `fastcgi_finish_request` /
+`litespeed_finish_request` first, so the user receives the response before
+the tracking POST goes out — page-render latency is unaffected even when
+the API is slow. On environments without FPM (CLI workers, plain CGI) the
+queue still flushes in shutdown but synchronously; the session POST keeps a
+tight 2-second cap as a backstop.
+
+`Mbuzz::event()`, `Mbuzz::conversion()`, and `Mbuzz::identify()` remain
+synchronous because callers want the response (event_id, conversion_id,
+attribution).
 
 ## Framework Integration
 
@@ -101,14 +119,16 @@ Mbuzz::initFromRequest();
 ### Laravel
 
 ```php
-// config/app.php - The service provider auto-registers via composer
+// app/Providers/AppServiceProvider.php
+use Mbuzz\Mbuzz;
 
-// config/mbuzz.php (publish with: php artisan vendor:publish --tag=mbuzz-config)
-return [
-    'api_key' => env('MBUZZ_API_KEY'),
-    'enabled' => env('MBUZZ_ENABLED', true),
-    'debug' => env('MBUZZ_DEBUG', false),
-];
+public function boot(): void
+{
+    Mbuzz::init([
+        'api_key' => config('services.mbuzz.key'),
+        'debug' => config('app.debug'),
+    ]);
+}
 
 // app/Http/Kernel.php
 protected $middleware = [
@@ -116,6 +136,11 @@ protected $middleware = [
     \Mbuzz\Adapter\LaravelMiddleware::class,
 ];
 ```
+
+The middleware is duck-typed against Laravel's `handle($request, Closure $next)`
+contract and never imports an Illuminate class. A dedicated service provider /
+config publisher is not shipped yet — wire `Mbuzz::init()` into a provider you
+already own.
 
 ### Symfony
 
@@ -138,20 +163,40 @@ The `SymfonySubscriber` automatically initializes tracking on each request by li
 
 ### Slim / PSR-15 Frameworks
 
+Add `psr/http-server-middleware` to your project (Slim and Mezzio already
+require it transitively):
+
+```bash
+composer require psr/http-server-middleware
+```
+
+Then wire it in:
+
 ```php
 <?php
 
 use Slim\Factory\AppFactory;
 use Mbuzz\Mbuzz;
-use Mbuzz\Middleware\TrackingMiddleware;
+use Mbuzz\Adapter\Psr15Middleware;
 
 $app = AppFactory::create();
 
 Mbuzz::init(['api_key' => $_ENV['MBUZZ_API_KEY']]);
-$app->add(new TrackingMiddleware());
+$app->add(new Psr15Middleware());
 
 $app->run();
 ```
+
+The same middleware works for Mezzio, Hyperf, and any other PSR-15
+compliant framework.
+
+### WordPress
+
+A dedicated WordPress plugin (with WooCommerce conversion hooks) is on the
+roadmap — see [`lib/specs/wordpress-plugin.md`](lib/specs/wordpress-plugin.md).
+Until it ships, drop the SDK into a small `mu-plugin` that calls
+`Mbuzz::init()` on `plugins_loaded` and `Mbuzz::initFromRequest()` on
+`template_redirect`.
 
 ## API Reference
 
