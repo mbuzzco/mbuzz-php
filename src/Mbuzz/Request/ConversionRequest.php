@@ -9,6 +9,13 @@ use Mbuzz\Api;
 
 final class ConversionRequest
 {
+    /**
+     * @param array<string, string>|null $identifier  DEPRECATED — pass the email
+     *   or external ID as `$userId` instead. The backend /conversions endpoint
+     *   has never permitted this field and the events endpoint treats
+     *   `identifier.email` exactly as `user_id`. Will be removed in a future
+     *   major release.
+     */
     public function __construct(
         private string $conversionType,
         private ?string $visitorId = null,
@@ -25,6 +32,24 @@ final class ConversionRequest
         /** @var array<string, string>|null */
         private ?array $identifier = null,
     ) {
+        if ($this->identifier !== null) {
+            // One-shot per process — matches the Python/Node patterns.
+            self::warnIdentifierDeprecatedOnce();
+        }
+    }
+
+    private static bool $identifierDeprecationWarned = false;
+
+    private static function warnIdentifierDeprecatedOnce(): void
+    {
+        if (self::$identifierDeprecationWarned) {
+            return;
+        }
+        self::$identifierDeprecationWarned = true;
+        @trigger_error(
+            'The `identifier` option on Mbuzz::conversion() is deprecated and ignored by the backend on /conversions. Pass the email or external ID as `user_id` instead.',
+            E_USER_DEPRECATED
+        );
     }
 
     /**

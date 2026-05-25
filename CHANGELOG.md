@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Deprecated
+
+- **`identifier` option on `Mbuzz::conversion()`.** Pass the email or external ID as `user_id` instead. The backend `/conversions` endpoint has never permitted this field — Rails strong params strip it — and the events endpoint treats `identifier.email` exactly as `user_id`. The option still serializes into the payload (backwards-compatible — existing callers keep working) but now emits `E_USER_DEPRECATED` once per process. Will be removed in a future major release. Matched by simultaneous deprecation in `mbuzz-python` and `mbuzz-node`.
+
 ## 1.2.0 (2026-05-26)
 
 Additive release driven by the upcoming WordPress plugin (`mbuzz-attribution`). No breaking changes.

@@ -169,14 +169,16 @@ The single most-requested integration. Hooks:
 
 ```php
 Mbuzz::conversion('purchase', [
-    'user_id'             => $order->get_user_id() ?: null,
+    // user_id resolves logged-in customers (numeric WP ID) or guest
+    // checkouts (billing email). Either way it's a stable per-customer
+    // identifier the backend uses to find-or-create an Identity row.
+    'user_id'             => $order->get_user_id() > 0
+        ? (string) $order->get_user_id()
+        : ($order->get_billing_email() ?: null),
     'revenue'             => (float) $order->get_total(),
     'currency'            => $order->get_currency(),
     'is_acquisition'      => $is_first_paid_order_for_user,
     'inherit_acquisition' => ! $is_first_paid_order_for_user,
-    'identifier'          => [
-        'email' => $order->get_billing_email(),
-    ],
     'properties'          => [
         'order_id'       => $order->get_id(),
         'order_number'   => $order->get_order_number(),
@@ -199,7 +201,7 @@ The order is marked with the returned conversion id to enable dedupe + audit. St
 
 ### Guest checkouts
 
-When `$order->get_user_id() === 0`, we send `identifier.email` so the backend can stitch on email if/when the user later logs in or registers.
+When `$order->get_user_id() === 0`, we send the billing email as `user_id`. The backend (multibuzz ≥ 1.x) treats `user_id` as a stable identifier — find-or-create an `Identity(external_id: $email)` and resolve a visitor from it. When the same customer later browses with a cookie, `Identities::IdentificationService` merges the cookied visitor onto that identity and re-runs attribution for prior conversions. No `identifier` field needed (deprecated in PHP/Python/Node SDKs as of 2026-05-25 — backend never honored it on `/conversions`).
 
 ### First-paid-order detection
 
@@ -225,7 +227,7 @@ All optional — the integration class checks if the host plugin is active (`cla
 |---|---|---|
 | **Easy Digital Downloads** | `edd_complete_purchase` | `purchase` with `revenue`, `payment_id`, downloads |
 | **Contact Form 7** | `wpcf7_submit` (gated on `$result['status'] ∈ {'mail_sent', 'demo_mode'}`) | `lead` with form ID + form title in properties. Why not `wpcf7_mail_sent`: forms configured for webhook/CRM-only delivery skip email and never fire that hook. |
-| **Gravity Forms** | `gform_after_submission` | `lead` with form ID; `identifier.email` if an email field exists |
+| **Gravity Forms** | `gform_after_submission` | `lead` with form ID; `user_id` set to the email field's value if one exists |
 | **WPForms** | `wpforms_process_complete` | `lead` |
 | **Fluent Forms** | `fluentform/submission_inserted` | `lead` |
 | **MemberPress** | `mepr-event-transaction-completed` | `purchase` with revenue + membership type |
