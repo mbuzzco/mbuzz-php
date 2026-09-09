@@ -20,7 +20,7 @@ use PHPUnit\Framework\TestCase;
  * cache is what separates "reuse the cookie the browser presents" (correct
  * everywhere else) from the visitor collapse it causes behind one.
  *
- * Spec: lib/specs/page_cache_attribution_rollout_spec.md
+ * Spec: lib/specs/old/page_cache_attribution_rollout_spec.md
  */
 class SessionEndpointTest extends TestCase
 {

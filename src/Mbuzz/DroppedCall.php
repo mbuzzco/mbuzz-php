@@ -14,7 +14,7 @@ namespace Mbuzz;
  * Deliberately NOT behind the debug flag — the customers who hit this are
  * precisely the ones not running in debug.
  *
- * @see lib/specs/page_cache_attribution_rollout_spec.md Phase 6
+ * @see lib/specs/old/page_cache_attribution_rollout_spec.md Phase 6
  */
 final class DroppedCall
 {

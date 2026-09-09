@@ -19,7 +19,7 @@ use PHPUnit\Framework\TestCase;
  * Verified here rather than assumed: these tests fail if the warning moves off
  * the path a real caller takes.
  *
- * Spec: lib/specs/page_cache_attribution_rollout_spec.md Phase 6
+ * Spec: lib/specs/old/page_cache_attribution_rollout_spec.md Phase 6
  */
 class DroppedCallTest extends TestCase
 {

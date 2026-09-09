@@ -20,7 +20,7 @@ namespace Mbuzz;
  * Framework-agnostic on purpose: the plain-PHP path and every adapter call the
  * same functions, so there is nothing to keep in sync.
  *
- * @see lib/specs/page_cache_attribution_rollout_spec.md
+ * @see lib/specs/old/page_cache_attribution_rollout_spec.md
  */
 final class SessionEndpoint
 {
