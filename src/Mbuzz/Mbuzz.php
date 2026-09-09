@@ -37,13 +37,21 @@ final class Mbuzz
     }
 
     /**
-     * Initialize context from request (call early in request lifecycle)
+     * Initialize context from request (call early in request lifecycle).
      * This handles cookie reading/writing.
+     *
+     * Returns true when the request WAS POST /_mbuzz/session and has already
+     * been answered — the visitor cookie is set and a 204 is on its way. The
+     * caller must return immediately rather than render a page:
+     *
+     *   if (Mbuzz::initFromRequest()) { return; }
+     *
+     * The bundled adapters do this for you.
      */
-    public static function initFromRequest(): void
+    public static function initFromRequest(): bool
     {
         self::ensureInitialized();
-        self::$client->initFromRequest();
+        return self::$client->initFromRequest();
     }
 
     /**

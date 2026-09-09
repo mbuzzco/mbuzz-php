@@ -75,28 +75,135 @@ final class Client
     }
 
     /**
-     * Initialize context from request (cookies) and create session if navigation
+     * Initialize context from request (cookies) and create session if navigation.
+     *
+     * Returns true when this request WAS the session endpoint and has been
+     * answered — the caller must then stop and send the response, because a
+     * Set-Cookie has been emitted and there is nothing further to render.
      */
-    public function initFromRequest(): void
+    public function initFromRequest(): bool
     {
         if (!$this->config->isEnabled()) {
-            return;
+            return false;
+        }
+
+        $path = $_SERVER['REQUEST_URI'] ?? '/';
+        $path = parse_url($path, PHP_URL_PATH) ?: '/';
+        $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+
+        // Checked ahead of the skip-path check and the navigation gate below,
+        // both deliberately. A customer's own skip_paths must not swallow the
+        // one request that still reaches the app on a cached page, and a
+        // fetch() can never satisfy sec-fetch-mode: navigate — leaving that
+        // gate in front would mint the cookie and then silently skip the
+        // session. Settled across Node and Python; not a per-SDK judgement.
+        if (SessionEndpoint::isSessionRequest($method, $path)) {
+            $this->handleSessionRequest();
+            return true;
         }
 
         // Skip tracking paths
-        $path = $_SERVER['REQUEST_URI'] ?? '/';
-        $path = parse_url($path, PHP_URL_PATH) ?: '/';
         if ($this->config->shouldSkipPath($path)) {
-            return;
+            return false;
         }
 
-        // Initialize context from cookies
+        // Only a cookie the browser already holds. This response may be stored
+        // by a full-page cache and replayed to everyone, so minting here would
+        // hand every later visitor the same id — see
+        // SessionEndpoint::MINT_ON_PAGE_RESPONSE. A first-time visitor is
+        // established a moment later by the session endpoint, whose response
+        // no cache stores.
         $this->context->initialize($this->cookies);
 
         // Create session for real page navigations (when visitor exists)
         if ($this->context->getVisitorId() !== null && NavigationDetector::shouldCreateSession()) {
             $this->createSession();
         }
+
+        return false;
+    }
+
+    /**
+     * Answer the session request: mint the cookie, record the session against
+     * the page, and send an empty, uncacheable 204.
+     */
+    private function handleSessionRequest(): void
+    {
+        $visitorId = $this->cookies->getVisitorId() ?? IdGenerator::generate();
+
+        $this->cookies->setVisitorId($visitorId);
+
+        $ip = $this->requestIp();
+        $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? 'unknown';
+
+        SessionEndpoint::createSession(
+            $this->api,
+            $visitorId,
+            $this->decodeSessionBody(),
+            $ip,
+            $userAgent
+        );
+
+        $this->sendSessionResponse();
+    }
+
+    /**
+     * The endpoint's response: no body, one Set-Cookie, never cacheable.
+     * The cookie itself is written by CookieManager, which owns the attributes.
+     */
+    private function sendSessionResponse(): void
+    {
+        if (headers_sent()) {
+            return;
+        }
+
+        http_response_code(SessionEndpoint::NO_CONTENT_STATUS);
+        header('Cache-Control: ' . SessionEndpoint::NO_STORE);
+    }
+
+    /**
+     * Where the request body is read from. Overridable so tests need no
+     * php://input stream wrapper.
+     *
+     * @var callable():(string|false)|null
+     */
+    private $bodyReader = null;
+
+    /**
+     * Set the raw request-body source (for testing).
+     *
+     * @param callable():(string|false) $reader
+     */
+    public function setBodyReader(callable $reader): void
+    {
+        $this->bodyReader = $reader;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function decodeSessionBody(): ?array
+    {
+        $reader = $this->bodyReader ?? static fn () => file_get_contents('php://input');
+        $raw = $reader();
+
+        if ($raw === false || $raw === '') {
+            return null;
+        }
+
+        $decoded = json_decode($raw, true);
+
+        return is_array($decoded) ? $decoded : null;
+    }
+
+    private function requestIp(): string
+    {
+        $forwarded = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? null;
+        if ($forwarded !== null) {
+            return trim(explode(',', $forwarded)[0]);
+        }
+
+        return $_SERVER['HTTP_X_REAL_IP'] ?? $_SERVER['REMOTE_ADDR'] ?? 'unknown';
     }
 
     /**
@@ -151,8 +258,11 @@ final class Client
         $resolvedVisitorId = $visitorId ?? $this->context->getVisitorId();
         $resolvedUserId = $this->context->getUserId();
 
-        // Must have at least one identifier
+        // Must have at least one identifier. This is the OUTERMOST guard for
+        // an event — Mbuzz::event() only delegates — so the warning belongs
+        // here, not at the layer nearest the HTTP call.
         if ($resolvedVisitorId === null && $resolvedUserId === null) {
+            DroppedCall::missingIdentity('event', $eventType);
             return false;
         }
 
@@ -201,8 +311,10 @@ final class Client
         $resolvedVisitorId = $options['visitor_id'] ?? $this->context->getVisitorId();
         $resolvedUserId = $options['user_id'] ?? $this->context->getUserId();
 
-        // Must have at least one identifier (visitor_id or user_id)
+        // Must have at least one identifier (visitor_id or user_id). Outermost
+        // guard for a conversion — see the note in track().
         if ($resolvedVisitorId === null && $resolvedUserId === null) {
+            DroppedCall::missingIdentity('conversion', $conversionType);
             return false;
         }
 

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Mbuzz\Adapter;
 
 use Mbuzz\Mbuzz;
+use Mbuzz\SessionResponse;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
@@ -29,8 +30,11 @@ final class Psr15Middleware implements MiddlewareInterface
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
         try {
-            if (Mbuzz::getClient() !== null) {
-                Mbuzz::initFromRequest();
+            if (Mbuzz::getClient() !== null && Mbuzz::initFromRequest()) {
+                // This request was POST /_mbuzz/session: the cookie is set and
+                // a 204 is on its way. Answer here rather than routing on, so
+                // the application never has to know the endpoint exists.
+                return SessionResponse::psr7($request);
             }
         } catch (\Throwable $e) {
             error_log('[Mbuzz] Psr15Middleware error: ' . $e->getMessage());

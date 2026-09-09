@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Mbuzz\Adapter;
 
 use Mbuzz\Mbuzz;
+use Mbuzz\SessionResponse;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 use Symfony\Component\HttpKernel\Event\RequestEvent;
 use Symfony\Component\HttpKernel\HttpKernelInterface;
@@ -48,8 +49,15 @@ final class SymfonySubscriber implements EventSubscriberInterface
             return;
         }
 
-        // Initialize tracking from the request
-        // This reads cookies, creates visitor/session IDs, and sets cookies
-        Mbuzz::initFromRequest();
+        // Initialize tracking from the request. This reads cookies and, on
+        // POST /_mbuzz/session, mints the visitor cookie.
+        if (!Mbuzz::initFromRequest()) {
+            return;
+        }
+
+        // This request was the session endpoint: answer it here, so the
+        // application never has to know the endpoint exists. setResponse()
+        // stops propagation and skips the controller.
+        $event->setResponse(SessionResponse::symfony());
     }
 }

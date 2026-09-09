@@ -46,20 +46,25 @@ final class Context
             return;
         }
 
-        // Get visitor ID from cookie (no fallback - prevents orphan visitors)
+        // Only the cookie the browser already holds, never a freshly minted
+        // one. This runs on a page response, which a full-page cache may store
+        // and replay to every visitor — a Set-Cookie here would hand everyone
+        // the same id and merge unrelated people into one journey. Minting
+        // belongs to SessionEndpoint alone, whose POST no cache stores.
+        // See SessionEndpoint::MINT_ON_PAGE_RESPONSE.
+        //
+        // (Until 2.0.0 this also carried an `isNewVisitor && visitorId !== null`
+        // branch that set the cookie. It was unreachable — isNewVisitor() is
+        // true precisely when getVisitorId() is null — which is the only reason
+        // PHP escaped the visitor-collapse defect that hit Ruby, Node and
+        // Python. Do not restore it.)
         $this->visitorId = $cookies->getVisitorId();
-        $isNewVisitor = $cookies->isNewVisitor();
 
         // Extract request info
         $this->url = $this->extractUrl();
         $this->referrer = $_SERVER['HTTP_REFERER'] ?? null;
         $this->ip = $this->extractClientIp();
         $this->userAgent = $_SERVER['HTTP_USER_AGENT'] ?? null;
-
-        // Set visitor cookie if new and visitor_id exists
-        if ($isNewVisitor && $this->visitorId !== null) {
-            $cookies->setVisitorId($this->visitorId);
-        }
 
         $this->initialized = true;
     }

@@ -6,6 +6,7 @@ namespace Mbuzz\Adapter;
 
 use Closure;
 use Mbuzz\Mbuzz;
+use Mbuzz\SessionResponse;
 
 /**
  * Laravel HTTP middleware for Mbuzz tracking.
@@ -33,8 +34,11 @@ final class LaravelMiddleware
     public function handle($request, Closure $next)
     {
         try {
-            if (Mbuzz::getClient() !== null) {
-                Mbuzz::initFromRequest();
+            if (Mbuzz::getClient() !== null && Mbuzz::initFromRequest()) {
+                // This request was POST /_mbuzz/session: the cookie is set and
+                // a 204 is on its way. Answer here rather than routing on, so
+                // the application never has to know the endpoint exists.
+                return SessionResponse::make();
             }
         } catch (\Throwable $e) {
             // Never let tracking interfere with the request pipeline.

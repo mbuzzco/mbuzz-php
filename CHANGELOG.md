@@ -1,5 +1,76 @@
 # Changelog
 
+## 2.0.0 (2026-09-09)
+
+**Breaking. Every install must add the inline snippet below, or tracking stops entirely.**
+
+### The bug
+
+A full-page cache serves HTML without invoking PHP. The SDK therefore never ran, no visitor cookie
+was set, and every later event and conversion was rejected for having nobody to attribute it to —
+silently, with no HTTP call and nothing logged, while the page rendered perfectly.
+
+### The fix
+
+An uncached first-party endpoint, `POST /_mbuzz/session`, is now the only place the visitor cookie is
+minted. A cache never stores a POST, so it is the one request that always reaches the app. The server
+still mints and owns the id, so it stays `HttpOnly` with its full two-year life — a `document.cookie`
+fallback would be capped at 7 days by Safari's ITP, and 24 hours after an ad click.
+
+**Add this inline in your `<head>` on every page.** Inline, not an enqueued file: asset optimisers
+delay external scripts until the visitor first interacts, so a visitor who lands and converts without
+clicking would never be established.
+
+```html
+<script>
+  fetch('/_mbuzz/session', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url: location.href, referrer: document.referrer || '' }),
+    credentials: 'same-origin',
+    keepalive: true
+  }).catch(function () {});
+</script>
+```
+
+### Added
+
+- **`Mbuzz\SessionEndpoint`** — the framework-agnostic core: request matching, payload construction,
+  and the session POST. Plain PHP and every adapter call the same functions, so there is nothing to
+  keep in sync.
+- **`Mbuzz\SessionResponse`** — the endpoint's 204, in Laravel, Symfony or PSR-7 shape as the host
+  requires. Duck-typed behind `class_exists()`, so no new hard dependency.
+- **`Mbuzz\DroppedCall`** — a dropped event or conversion now says why, naming the call, the reason,
+  and the fix. Not gated on `debug`: the customers who hit this are precisely the ones not running in
+  debug. This silence is why the bug cost a full day on a live account.
+- **`Client::setBodyReader()`** — injectable raw-body source, so tests need no `php://input` stream
+  wrapper.
+
+### Changed
+
+- **`Mbuzz::initFromRequest()` now returns `bool`** (was `void`). `true` means the request *was* the
+  session endpoint and has been answered — the caller must return rather than render:
+
+  ```php
+  if (Mbuzz::initFromRequest()) { return; }
+  ```
+
+  The bundled Laravel, Symfony and PSR-15 adapters do this for you; only hand-rolled plain-PHP
+  integrations need the line.
+- **The session endpoint is checked ahead of `skip_paths` and ahead of the navigation gate**, both
+  deliberately. A customer's own `skip_paths` must not swallow the one request that still reaches the
+  app on a cached page, and a `fetch()` can never satisfy `sec-fetch-mode: navigate` — leaving that
+  gate in front would mint the cookie and then silently skip the session.
+
+### Removed
+
+- **The unreachable minting branch in `Context::initialize()`.** It was guarded by
+  `isNewVisitor() && visitorId !== null`, which cannot both hold, so a page response never minted.
+  That accident is the only reason this SDK escaped the visitor-collapse defect that hit the Ruby,
+  Node and Python SDKs, where a cached `Set-Cookie` handed every visitor the same id and merged
+  unrelated people into a single journey. It is now explicit and tested, not accidental. **Do not
+  restore it.**
+
 ## Unreleased
 
 ### Deprecated
