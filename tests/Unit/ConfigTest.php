@@ -235,4 +235,63 @@ class ConfigTest extends TestCase
         // Default extensions still work
         $this->assertTrue($config->shouldSkipPath('/assets/main.js'));
     }
+
+    // -----------------------------------------------------------------
+    // setApiUrlForTesting — the integration harness's only way in
+    // -----------------------------------------------------------------
+
+    public function testSetApiUrlForTestingRedirectsATestKey(): void
+    {
+        $config = Config::getInstance();
+        $config->init(['api_key' => 'sk_test_abc123']);
+
+        $config->setApiUrlForTesting('http://localhost:3987/api/v1');
+
+        $this->assertEquals('http://localhost:3987/api/v1', $config->getApiUrl());
+    }
+
+    public function testSetApiUrlForTestingStripsATrailingSlash(): void
+    {
+        $config = Config::getInstance();
+        $config->init(['api_key' => 'sk_test_abc123']);
+
+        $config->setApiUrlForTesting('http://localhost:3987/api/v1/');
+
+        $this->assertEquals('http://localhost:3987/api/v1', $config->getApiUrl());
+    }
+
+    /**
+     * The whole point of removing api_url from init() in 0.8.2: a live install
+     * must never be redirected away from production by configuration.
+     */
+    public function testSetApiUrlForTestingRefusesALiveKey(): void
+    {
+        $config = Config::getInstance();
+        $config->init(['api_key' => 'sk_live_abc123']);
+
+        $this->expectException(\LogicException::class);
+        $config->setApiUrlForTesting('http://evil.example.com/api/v1');
+    }
+
+    public function testALiveKeyKeepsTheProductionUrlAfterARefusedRedirect(): void
+    {
+        $config = Config::getInstance();
+        $config->init(['api_key' => 'sk_live_abc123']);
+
+        try {
+            $config->setApiUrlForTesting('http://evil.example.com/api/v1');
+        } catch (\LogicException $e) {
+            // expected
+        }
+
+        $this->assertEquals('https://api.mbuzz.co/api/v1', $config->getApiUrl());
+    }
+
+    public function testInitStillIgnoresAnApiUrlOption(): void
+    {
+        $config = Config::getInstance();
+        $config->init(['api_key' => 'sk_test_abc123', 'api_url' => 'http://ignored.example.com']);
+
+        $this->assertEquals('https://api.mbuzz.co/api/v1', $config->getApiUrl());
+    }
 }

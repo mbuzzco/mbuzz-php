@@ -159,4 +159,31 @@ final class Config
     {
         return str_starts_with($this->apiKey, 'sk_test_');
     }
+
+    /**
+     * Point the SDK at a different API host. For integration testing only.
+     *
+     * `api_url` was deliberately removed from init() in 0.8.2 so a production
+     * install can never be redirected away from api.mbuzz.co by configuration.
+     * That is still true: this setter refuses unless the configured key is a
+     * test key, so the only thing it can redirect is a test account. The
+     * integration harness needs it — without it the SDK posts every session to
+     * production and the API-side assertions verify nothing.
+     *
+     * Mirrors the Python SDK, whose test app assigns config.api_url directly
+     * for the same reason.
+     *
+     * @throws \LogicException when the configured key is not a test key
+     */
+    public function setApiUrlForTesting(string $apiUrl): void
+    {
+        if (!$this->isTestKey()) {
+            throw new \LogicException(
+                'setApiUrlForTesting() requires an sk_test_ key: a live install must '
+                . 'never be redirected away from ' . self::DEFAULT_API_URL
+            );
+        }
+
+        $this->apiUrl = rtrim($apiUrl, '/');
+    }
 }
