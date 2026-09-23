@@ -1,5 +1,21 @@
 # Changelog
 
+## 2.1.0 (2026-09-23)
+
+**Forwards Meta's `_fbp` cookie on the session call.** No install change needed.
+
+Meta merges a server event with the browser Pixel's event for the same action on `event_name` +
+`fbp` when their event IDs differ. The SDK never sent `fbp`, so an mbuzz server event could not be
+paired with the Pixel's and Meta counted both.
+
+- `CookieManager::getFbp()` reads the `_fbp` cookie the customer's Meta Pixel already set, and
+  returns it only if it is in Meta's format (`fb.<n>.<n>.<n>`). The SDK never sets, changes or
+  invents the cookie.
+- Both session paths — the page path and `POST /_mbuzz/session` — add `fbp` to the session payload
+  when the browser holds one, and omit the key otherwise.
+- The server keeps the first `fbp` a session receives, including from a later page view, so a
+  session opened before the Pixel wrote its cookie still gets one.
+
 ## 2.0.0 (2026-09-09)
 
 **Breaking. Every install must add the inline snippet below, or tracking stops entirely.**

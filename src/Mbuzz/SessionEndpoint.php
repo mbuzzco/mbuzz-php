@@ -73,14 +73,15 @@ final class SessionEndpoint
         string $visitorId,
         ?array $body,
         string $ip,
-        string $userAgent
+        string $userAgent,
+        ?string $fbp = null
     ): array {
         // The customer's body-parser config is not something the fix can
         // depend on.
         $fields = $body ?? [];
 
         return [
-            'session' => [
+            'session' => self::withFbp([
                 'visitor_id' => $visitorId,
                 'session_id' => IdGenerator::generateUuid(),
                 // The page's URL, not ours — a script on the page called us, so
@@ -90,8 +91,20 @@ final class SessionEndpoint
                 'device_fingerprint' => Fingerprint::compute($ip, $userAgent),
                 'user_agent' => $userAgent,
                 'started_at' => gmdate('Y-m-d\TH:i:s\Z'),
-            ],
+            ], $fbp),
         ];
+    }
+
+    /**
+     * Add Meta's browser id when the browser holds one; omit the key otherwise
+     * (B7). Shared by the page path in Client.
+     *
+     * @param array<string, mixed> $session
+     * @return array<string, mixed>
+     */
+    public static function withFbp(array $session, ?string $fbp): array
+    {
+        return $fbp === null ? $session : $session + ['fbp' => $fbp];
     }
 
     /**
@@ -105,11 +118,12 @@ final class SessionEndpoint
         string $visitorId,
         ?array $body,
         string $ip,
-        string $userAgent
+        string $userAgent,
+        ?string $fbp = null
     ): void {
         $api->post(
             '/sessions',
-            self::buildPayload($visitorId, $body, $ip, $userAgent),
+            self::buildPayload($visitorId, $body, $ip, $userAgent, $fbp),
             self::SESSION_POST_TIMEOUT
         );
     }
