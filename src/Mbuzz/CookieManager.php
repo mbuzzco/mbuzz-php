@@ -10,6 +10,16 @@ final class CookieManager
     public const VISITOR_COOKIE = '_mbuzz_vid';
     public const VISITOR_MAX_AGE = 63072000; // 2 years in seconds
 
+    /**
+     * Meta's browser id, written client-side by the customer's Meta Pixel.
+     * Read only, never set: forwarded on the session call so Meta can merge
+     * mbuzz's server event with the Pixel's browser event (B7).
+     */
+    public const FBP_COOKIE = '_fbp';
+
+    /** Meta's documented shape: fb.<subdomainIndex>.<creationTime>.<random> */
+    public const FBP_FORMAT = '/\Afb\.\d+\.\d+\.\d+\z/';
+
     /** @var array<string, string> */
     private array $cookies;
 
@@ -105,6 +115,17 @@ final class CookieManager
     public function setVisitorId(string $visitorId): bool
     {
         return $this->set(self::VISITOR_COOKIE, $visitorId, self::VISITOR_MAX_AGE);
+    }
+
+    /**
+     * The Pixel's _fbp, or null when absent or not in Meta's format. mbuzz
+     * never invents one.
+     */
+    public function getFbp(): ?string
+    {
+        $fbp = $this->get(self::FBP_COOKIE);
+
+        return $fbp !== null && preg_match(self::FBP_FORMAT, $fbp) === 1 ? $fbp : null;
     }
 
     /**

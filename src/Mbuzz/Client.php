@@ -114,17 +114,19 @@ final class Client
         $ip = $this->context->getClientIp() ?? 'unknown';
         $userAgent = $this->context->getUserAgent() ?? 'unknown';
 
-        $payload = [
-            'session' => [
-                'visitor_id' => $this->context->getVisitorId(),
-                'session_id' => IdGenerator::generateUuid(),
-                'url' => $this->context->getUrl(),
-                'referrer' => $this->context->getReferrer(),
-                'device_fingerprint' => Fingerprint::compute($ip, $userAgent),
-                'user_agent' => $userAgent,
-                'started_at' => gmdate('Y-m-d\TH:i:s\Z'),
-            ],
+        $session = [
+            'visitor_id' => $this->context->getVisitorId(),
+            'session_id' => IdGenerator::generateUuid(),
+            'url' => $this->context->getUrl(),
+            'referrer' => $this->context->getReferrer(),
+            'device_fingerprint' => Fingerprint::compute($ip, $userAgent),
+            'user_agent' => $userAgent,
+            'started_at' => gmdate('Y-m-d\TH:i:s\Z'),
         ];
+
+        // Meta's browser id, when the Pixel set one; the key is omitted otherwise (B7).
+        $fbp = $this->cookies->getFbp();
+        $payload = ['session' => $fbp === null ? $session : $session + ['fbp' => $fbp]];
 
         $this->api->post('/sessions', $payload, self::SESSION_POST_TIMEOUT);
     }

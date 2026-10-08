@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.2 (2026-10-08)
+
+Backport of 2.1.0's `fbp` forwarding to the 1.x line (the WordPress plugin stays on 1.x). No breaking changes.
+
+### Added
+
+- **`_fbp` forwarded on the session call.** `CookieManager::getFbp()` reads the cookie Meta's Pixel already set (Meta's `fb.<n>.<ts>.<random>` format only; never written, never invented) and the session payload carries it as `fbp` when present. Meta merges a server event with the Pixel's browser event on `event_name` + `fbp` when the event IDs differ, so without it every server `Lead` counted as a second one. The key is omitted when the cookie is absent or malformed.
+
 ## Unreleased
 
 ### Deprecated
