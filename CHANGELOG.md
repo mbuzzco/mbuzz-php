@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.2.3 (2026-10-14)
+
+No breaking changes.
+
+### Fixed
+
+- **`_fbp` with Meta's appendix is now forwarded.** Meta's server-side Parameter Builder writes `fb.<n>.<ts>.<random>.<appendix>` (e.g. `...AQECAQIB`), and Meta accepts it. The format check accepted only four segments, so a site whose `_fbp` was server-minted forwarded no `fbp` at all. An optional fifth `[A-Za-z0-9_-]+` segment is now accepted; anything else is still dropped.
+
+### Added
+
+- `Config::setApiUrlForTesting()` (backport from 2.x). Points the SDK at a local API for integration tests; refuses unless the configured key is `sk_test_`, so a live install still cannot be redirected by configuration.
+
 ## 1.2.2 (2026-10-08)
 
 Backport of 2.1.0's `fbp` forwarding to the 1.x line (the WordPress plugin stays on 1.x). No breaking changes.
