@@ -61,6 +61,38 @@ class FbpCaptureTest extends TestCase
         $this->assertNull((new CookieManager([CookieManager::FBP_COOKIE => 'not-a-meta-cookie']))->getFbp());
     }
 
+    /**
+     * Meta's server-side Parameter Builder appends a fifth segment, and Meta
+     * accepts it. Rejecting it turns a valid cookie into null.
+     */
+    public function testReadsAnFbpWithMetasAppendix(): void
+    {
+        $value = self::FBP . '.AQECAQIB';
+
+        $this->assertSame($value, (new CookieManager([CookieManager::FBP_COOKIE => $value]))->getFbp());
+    }
+
+    /**
+     * @dataProvider malformedFbpValues
+     */
+    public function testIgnoresAMalformedAppendix(string $value): void
+    {
+        $this->assertNull((new CookieManager([CookieManager::FBP_COOKIE => $value]))->getFbp());
+    }
+
+    /** @return array<string, array{string}> */
+    public static function malformedFbpValues(): array
+    {
+        return [
+            'empty appendix' => [self::FBP . '.'],
+            'space in appendix' => [self::FBP . '.a b'],
+            'six segments' => [self::FBP . '.AQEC.AQEC'],
+            'trailing newline' => [self::FBP . ".AQEC\n"],
+            'non-numeric random' => ['fb.1.1758585600000.abc.AQEC'],
+            'wrong prefix' => ['xx.1.1758585600000.1234567890.AQEC'],
+        ];
+    }
+
     public function testNoFbpCookieIsNull(): void
     {
         $this->assertNull((new CookieManager([]))->getFbp());

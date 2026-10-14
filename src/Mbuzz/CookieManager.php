@@ -17,8 +17,12 @@ final class CookieManager
      */
     public const FBP_COOKIE = '_fbp';
 
-    /** Meta's documented shape: fb.<subdomainIndex>.<creationTime>.<random> */
-    public const FBP_FORMAT = '/\Afb\.\d+\.\d+\.\d+\z/';
+    /**
+     * Meta's documented shape: fb.<subdomainIndex>.<creationTime>.<random>,
+     * plus the optional appendix Meta's server-side Parameter Builder adds
+     * (e.g. fb.1.<ts>.<random>.AQECAQIB). Both are valid to Meta.
+     */
+    public const FBP_FORMAT = '/\Afb\.\d+\.\d+\.\d+(?:\.[A-Za-z0-9_-]+)?\z/';
 
     /** @var array<string, string> */
     private array $cookies;
