@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.1.1 (2026-10-14)
+
+No breaking changes.
+
+### Fixed
+
+- **`_fbp` with Meta's appendix is now forwarded.** Meta's server-side Parameter Builder writes `fb.<n>.<ts>.<random>.<appendix>` (e.g. `...AQECAQIB`), and Meta accepts it. The format check accepted only four segments, so a site whose `_fbp` was server-minted forwarded no `fbp` at all. An optional fifth `[A-Za-z0-9_-]+` segment is now accepted; anything else is still dropped.
+
 ## 2.1.0 (2026-09-23)
 
 **Forwards Meta's `_fbp` cookie on the session call.** No install change needed.
