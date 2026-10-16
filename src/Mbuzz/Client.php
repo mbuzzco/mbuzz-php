@@ -223,7 +223,7 @@ final class Client
         $userAgent = $this->context->getUserAgent() ?? 'unknown';
 
         $payload = [
-            'session' => SessionEndpoint::withFbp([
+            'session' => SessionEndpoint::withVisitorIp(SessionEndpoint::withFbp([
                 'visitor_id' => $this->context->getVisitorId(),
                 'session_id' => IdGenerator::generateUuid(),
                 'url' => $this->context->getUrl(),
@@ -231,7 +231,7 @@ final class Client
                 'device_fingerprint' => Fingerprint::compute($ip, $userAgent),
                 'user_agent' => $userAgent,
                 'started_at' => gmdate('Y-m-d\TH:i:s\Z'),
-            ], $this->cookies->getFbp()),
+            ], $this->cookies->getFbp()), $ip),
         ];
 
         $this->api->post('/sessions', $payload, self::SESSION_POST_TIMEOUT);

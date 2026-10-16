@@ -304,6 +304,49 @@ class SessionEndpointTest extends TestCase
     }
 
     // -----------------------------------------------------------------
+    // The visitor's address travels with the session (H2.3a.8)
+    // -----------------------------------------------------------------
+
+    /**
+     * The address is half of device_fingerprint = SHA256(ip|user_agent), so the
+     * SDK already holds it; without the key mbuzz stores no IP and Meta flags
+     * every server event as sending a user agent with no IP.
+     */
+    public function testTheSessionPayloadCarriesTheVisitorsIp(): void
+    {
+        $this->asSessionRequest();
+        $_SERVER['HTTP_X_FORWARDED_FOR'] = '198.51.100.7, 10.0.0.1';
+
+        $capturedPath = null;
+        $capturedPayload = null;
+        $cookiesSet = [];
+        $client = $this->client([], $cookiesSet, $capturedPath, $capturedPayload);
+
+        $client->initFromRequest();
+
+        $this->assertSame('198.51.100.7', $capturedPayload['session']['ip']);
+    }
+
+    /**
+     * 'unknown' is the fingerprint's stand-in, never an address. Sending it
+     * would only be refused by the server; omitting the key says "no IP".
+     */
+    public function testTheSessionPayloadOmitsIpWhenNoneIsKnown(): void
+    {
+        $this->asSessionRequest();
+        unset($_SERVER['REMOTE_ADDR'], $_SERVER['HTTP_X_FORWARDED_FOR'], $_SERVER['HTTP_X_REAL_IP']);
+
+        $capturedPath = null;
+        $capturedPayload = null;
+        $cookiesSet = [];
+        $client = $this->client([], $cookiesSet, $capturedPath, $capturedPayload);
+
+        $client->initFromRequest();
+
+        $this->assertArrayNotHasKey('ip', $capturedPayload['session']);
+    }
+
+    // -----------------------------------------------------------------
     // Helpers
     // -----------------------------------------------------------------
 

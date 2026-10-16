@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.1.2 (2026-10-16)
+
+No breaking changes.
+
+### Fixed
+
+- **The session call now carries the visitor's IP (`ip`).** The SDK already computed it for `device_fingerprint` but left it out of the payload, so mbuzz stored no visitor IP and Meta flagged every server event as sending a user agent with no IP address (`s2s_missing_ip_actions`). The key is omitted when no address is known; the server refuses private and loopback ranges.
+
 ## 2.1.1 (2026-10-14)
 
 No breaking changes.

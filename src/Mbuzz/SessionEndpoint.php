@@ -81,7 +81,7 @@ final class SessionEndpoint
         $fields = $body ?? [];
 
         return [
-            'session' => self::withFbp([
+            'session' => self::withVisitorIp(self::withFbp([
                 'visitor_id' => $visitorId,
                 'session_id' => IdGenerator::generateUuid(),
                 // The page's URL, not ours — a script on the page called us, so
@@ -91,8 +91,31 @@ final class SessionEndpoint
                 'device_fingerprint' => Fingerprint::compute($ip, $userAgent),
                 'user_agent' => $userAgent,
                 'started_at' => gmdate('Y-m-d\TH:i:s\Z'),
-            ], $fbp),
+            ], $fbp), $ip),
         ];
+    }
+
+    /**
+     * Stand-in the fingerprint uses when no address is known. Never an address.
+     */
+    public const UNKNOWN_ADDRESS = 'unknown';
+
+    /**
+     * Add the visitor's address when one is known; omit the key otherwise
+     * (H2.3a.8). The SDK already holds it — it is half of the device
+     * fingerprint — and mbuzz forwards it to Meta as `client_ip_address`.
+     * Without it Meta flags every server event as sending a user agent with no
+     * IP. The server refuses private and loopback ranges, so a proxy that
+     * hides the visitor degrades to "no IP", never to the customer's LAN.
+     *
+     * @param array<string, mixed> $session
+     * @return array<string, mixed>
+     */
+    public static function withVisitorIp(array $session, ?string $ip): array
+    {
+        $unknown = $ip === null || $ip === '' || $ip === self::UNKNOWN_ADDRESS;
+
+        return $unknown ? $session : $session + ['ip' => $ip];
     }
 
     /**
