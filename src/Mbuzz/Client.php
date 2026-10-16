@@ -126,7 +126,14 @@ final class Client
 
         // Meta's browser id, when the Pixel set one; the key is omitted otherwise (B7).
         $fbp = $this->cookies->getFbp();
-        $payload = ['session' => $fbp === null ? $session : $session + ['fbp' => $fbp]];
+        $session = $fbp === null ? $session : $session + ['fbp' => $fbp];
+
+        // The visitor's address, which the fingerprint already used; omitted
+        // when unknown. mbuzz forwards it to Meta as client_ip_address, and
+        // refuses private and loopback ranges server-side (H2.3a.8).
+        $session = $ip === 'unknown' ? $session : $session + ['ip' => $ip];
+
+        $payload = ['session' => $session];
 
         $this->api->post('/sessions', $payload, self::SESSION_POST_TIMEOUT);
     }

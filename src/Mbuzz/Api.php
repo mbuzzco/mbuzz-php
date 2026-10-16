@@ -6,7 +6,7 @@ namespace Mbuzz;
 
 final class Api
 {
-    private const USER_AGENT = 'mbuzz-php/1.2.3';
+    private const USER_AGENT = 'mbuzz-php/1.2.4';
 
     private Config $config;
 
