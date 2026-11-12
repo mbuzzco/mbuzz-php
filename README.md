@@ -72,6 +72,7 @@ $userId = Mbuzz::userId();
 ```php
 Mbuzz::init([
     'api_key' => 'sk_live_...',           // Required: Your Mbuzz API key
+    'api_url' => null,                      // Optional: data-resident installs only, see below
     'enabled' => true,                      // Optional: Enable/disable tracking
     'debug' => false,                       // Optional: Log API requests
     'timeout' => 5,                         // Optional: HTTP timeout in seconds
@@ -80,8 +81,29 @@ Mbuzz::init([
 ]);
 ```
 
-The API URL is fixed at `https://api.mbuzz.co/api/v1` — all traffic routes
+By default the API URL is `https://api.mbuzz.co/api/v1` — all traffic routes
 through the edge ingest proxy.
+
+### Data-resident installs (`api_url`)
+
+An account whose data must stay in a region (for example Australia) is given a
+region API key (`sk_live_au_...`) and a host to send to. Set both:
+
+```php
+Mbuzz::init([
+    'api_key' => 'sk_live_au_...',
+    'api_url' => 'https://<your region host>/api/v1',
+]);
+```
+
+`api_url` is an explicit opt-in with three rules, so a normal install can never
+be redirected by accident:
+
+- It must be `https://`. Anything else throws `InvalidArgumentException`.
+- A region key requires `api_url`, and `api_url` requires a region key. A
+  mismatch throws at `init()` instead of sending visitor details to the wrong host.
+- There is no fallback host. A request that fails is dropped, never retried
+  against `api.mbuzz.co`.
 
 ## Non-blocking dispatch
 

@@ -75,13 +75,15 @@ final class Config
      *
      * @param array{
      *   api_key: string,
+     *   api_url?: string,
      *   enabled?: bool,
      *   debug?: bool,
      *   timeout?: int,
      *   skip_paths?: array<string>,
      *   skip_extensions?: array<string>
      * } $options
-     * @throws InvalidArgumentException if api_key is missing or empty
+     * @throws InvalidArgumentException if api_key is missing or empty, or api_url
+     *   is not https, or the key's region marker does not match the host choice
      */
     public function init(array $options): void
     {
@@ -90,8 +92,10 @@ final class Config
             throw new InvalidArgumentException('api_key is required');
         }
 
+        $apiUrl = self::resolveApiUrl($apiKey, $options['api_url'] ?? null);
+
         $this->apiKey = $apiKey;
-        $this->apiUrl = rtrim(self::DEFAULT_API_URL, '/');
+        $this->apiUrl = $apiUrl;
         $this->enabled = $options['enabled'] ?? true;
         $this->debug = $options['debug'] ?? false;
         $this->timeout = $options['timeout'] ?? self::DEFAULT_TIMEOUT;
@@ -104,6 +108,35 @@ final class Config
             $options['skip_extensions'] ?? []
         );
         $this->initialized = true;
+    }
+
+    /**
+     * api_url is an explicit opt-in for data-resident installs (spec M9). Three
+     * rules keep a production install from being redirected by accident:
+     * https only; no api_url means api.mbuzz.co, always; and a region key
+     * (sk_live_au_...) must be paired with an api_url, and an api_url with a
+     * region key, so a mis-pointed site fails here instead of sending contact
+     * details to the wrong host. Test keys are exempt from the pairing rule.
+     * There is deliberately no fallback host: a failed request is dropped, never
+     * retried against api.mbuzz.co.
+     */
+    private static function resolveApiUrl(string $apiKey, mixed $apiUrl): string
+    {
+        $hasUrl = is_string($apiUrl) && $apiUrl !== '';
+        $isRegionKey = (bool) preg_match('/^sk_[a-z]+_[a-z]{2}_/', $apiKey);
+        $isTestKey = str_starts_with($apiKey, 'sk_test_');
+
+        if ($hasUrl && !str_starts_with($apiUrl, 'https://')) {
+            throw new InvalidArgumentException('api_url must start with https://');
+        }
+        if (!$isTestKey && $hasUrl !== $isRegionKey) {
+            throw new InvalidArgumentException(
+                'api_url and the API key region must be set together: a region key needs '
+                . 'api_url, and api_url needs a region key'
+            );
+        }
+
+        return rtrim($hasUrl ? $apiUrl : self::DEFAULT_API_URL, '/');
     }
 
     public function isInitialized(): bool
