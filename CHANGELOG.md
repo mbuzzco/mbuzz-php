@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.2.0 (unreleased)
+
+No breaking changes for existing installs.
+
+### Added
+
+- **`api_url` option for data-resident installs.** `Mbuzz::init()` accepts `api_url` again (removed in 0.8.2 so a live install could not be redirected). It is an explicit opt-in: `https://` only, a region key (`sk_live_au_...`) must be paired with `api_url` and `api_url` with a region key (a mismatch throws `InvalidArgumentException` at `init()`), and there is no fallback host. Installs that do not set `api_url` behave exactly as before. `sk_test_` keys may use `api_url` over https for staging.
+
 ## 2.1.2 (2026-10-16)
 
 No breaking changes.

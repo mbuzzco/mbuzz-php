@@ -63,15 +63,48 @@ class ConfigTest extends TestCase
         $this->assertEquals('https://api.mbuzz.co/api/v1', $config->getApiUrl());
     }
 
-    public function testApiUrlIgnoredInOptions(): void
+    public function testApiUrlIsHonouredWithARegionKey(): void
     {
         $config = Config::getInstance();
-        $config->init([
-            'api_key' => 'sk_test_abc123',
-            'api_url' => 'https://custom.api.com/v1',
-        ]);
+        $config->init(['api_key' => 'sk_live_au_abc123', 'api_url' => 'https://ingest.example.com.au/api/v1/']);
 
-        // api_url in options is silently ignored — always uses default
+        $this->assertEquals('https://ingest.example.com.au/api/v1', $config->getApiUrl());
+    }
+
+    public function testApiUrlMustBeHttps(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        Config::getInstance()->init(['api_key' => 'sk_live_au_abc123', 'api_url' => 'http://ingest.example.com.au']);
+    }
+
+    public function testRegionKeyWithoutApiUrlIsRefused(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        Config::getInstance()->init(['api_key' => 'sk_live_au_abc123']);
+    }
+
+    public function testGlobalKeyWithApiUrlIsRefused(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        Config::getInstance()->init(['api_key' => 'sk_live_abc123', 'api_url' => 'https://ingest.example.com.au']);
+    }
+
+    public function testTestKeyMayUseApiUrlOverHttps(): void
+    {
+        $config = Config::getInstance();
+        $config->init(['api_key' => 'sk_test_abc123', 'api_url' => 'https://staging.example.com/api/v1']);
+
+        $this->assertEquals('https://staging.example.com/api/v1', $config->getApiUrl());
+    }
+
+    public function testEmptyApiUrlMeansDefault(): void
+    {
+        $config = Config::getInstance();
+        $config->init(['api_key' => 'sk_live_abc123', 'api_url' => '']);
+
         $this->assertEquals('https://api.mbuzz.co/api/v1', $config->getApiUrl());
     }
 
@@ -283,14 +316,6 @@ class ConfigTest extends TestCase
         } catch (\LogicException $e) {
             // expected
         }
-
-        $this->assertEquals('https://api.mbuzz.co/api/v1', $config->getApiUrl());
-    }
-
-    public function testInitStillIgnoresAnApiUrlOption(): void
-    {
-        $config = Config::getInstance();
-        $config->init(['api_key' => 'sk_test_abc123', 'api_url' => 'http://ignored.example.com']);
 
         $this->assertEquals('https://api.mbuzz.co/api/v1', $config->getApiUrl());
     }
