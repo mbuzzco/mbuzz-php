@@ -1,6 +1,6 @@
 # Changelog
 
-## 2.2.0 (unreleased)
+## 2.2.0 (2026-11-13)
 
 No breaking changes for existing installs.
 
