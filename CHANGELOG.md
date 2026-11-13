@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.3.0 (unreleased)
+## 1.3.0 (2026-11-13)
 
 No breaking changes for existing installs.
 
