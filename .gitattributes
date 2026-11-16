@@ -1,0 +1,2 @@
+# Internal notes never ship in the package (Packagist serves git archive).
+CLAUDE.md export-ignore
